@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+    <meta content="text/html; charset=utf-8" http-equiv="content-type">
+    <title>Rolek</title>
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <link href='https://unpkg.com/normalize.css/normalize.css' rel='stylesheet' type='text/css'>
+    <link href="https://unpkg.com/sakura.css/css/sakura.css" rel="stylesheet" type="text/css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script>
+    $(document).ready(function(){
+            $.get("config.json", function(data) {
+
+                $.each(data, function(key, val) {
+                    if (val) {
+                        code = '<input type="button" value="&#8679" onclick="cmd(\'' + val + '\', 1);"/> ';
+                        code += '<input type="button" value="&#8681" onclick="cmd(\'' + val + '\', 0);"/> ';
+                        code += key + '<br>';
+                    }
+                    $("p").append(code);
+                });
+
+            });
+        });
+        function cmd(mask, up) {
+            url = up ? "/up" : "/down";
+            if (mask)
+            {
+                url += "?mask=" + mask;
+            }
+            $.post(url);
+        }
+    </script>
+</head>
+
+<body>
+    <h1>
+        <input type="button" value="&#8679" onclick="cmd(0, 1);"/>
+        <input type="button" value="&#8681" onclick="cmd(0, 0);"/>
+        Rolek
+    </h1>
+    <p>
+    </p>
+</body>
+</html>
