@@ -3,10 +3,7 @@
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>
 
-extern const unsigned char PROGMEM index_html[];
-extern const unsigned int index_html_len;
-extern const unsigned char PROGMEM config_json[];
-extern const unsigned int config_json_len;
+void setup_static_endpoints(ESP8266WebServer & server);
 
 #define PIN_UP D6
 #define PIN_DN D5
@@ -108,23 +105,7 @@ void init_output(unsigned int pin)
 
 void setup_endpoints()
 {
-    server.on("/", []{
-            EndpointDebugger d;
-            server.send_P(
-                    200,
-                    "text/html",
-                    (PGM_P)(index_html),
-                    index_html_len);
-            });
-
-    server.on("/config.json", []{
-            EndpointDebugger d;
-            server.send_P(
-                    200,
-                    "application/json",
-                    (PGM_P)(config_json),
-                    config_json_len);
-            });
+    setup_static_endpoints(server);
 
     auto handler = [](bool up){
         EndpointDebugger d;
