@@ -48,7 +48,7 @@ void navigate_to(unsigned int index)
         }
 
         digitalWrite(pin, HIGH);
-        delay(50);
+        delay(100);
         digitalWrite(pin, LOW);
         delay(100);
     }
@@ -139,7 +139,7 @@ void setup_endpoints()
                 digitalWrite(pin, HIGH);
                 delay(250);
                 digitalWrite(pin, LOW);
-                delay(100);
+                delay(250);
 
                 mask ^= current;
             }
