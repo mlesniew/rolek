@@ -1,6 +1,7 @@
 ARDUINO=~/arduino-1.8.7/arduino
 FILE=rolek.ino
 STATIC_FILES=$(shell find static -type f)
+STATIC_FILES+=static/config.json
 
 all: upload
 
