@@ -34,7 +34,10 @@ void power(bool on) {
 
 void navigate_to(unsigned int index)
 {
-    Serial.println("Selecting index " + String(index));
+    Serial.println(
+            "current index " + String(current_index) +
+            ", going to " + String(index));
+
     while (current_index != index)
     {
         unsigned int pin;
@@ -42,9 +45,11 @@ void navigate_to(unsigned int index)
         {
             pin = PIN_RT;
             current_index++;
+            Serial.println("RIGHT");
         } else {
             pin = PIN_LT;
             current_index--;
+            Serial.println("LEFT");
         }
 
         digitalWrite(pin, HIGH);
@@ -135,6 +140,12 @@ void setup_endpoints()
             {
                 navigate_to(idx);
                 const unsigned int pin = up ? PIN_UP : PIN_DN;
+
+                if (up) {
+                    Serial.println("UP");
+                } else {
+                    Serial.println("DOWN");
+                }
 
                 digitalWrite(pin, HIGH);
                 delay(250);
