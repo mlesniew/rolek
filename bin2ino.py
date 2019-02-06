@@ -18,7 +18,7 @@ for idx, filename in enumerate(sys.argv[1:], 1):
     symbol = name.upper().replace('.', '_')
 
     code = ', '.join('0x%02x' % c for c in data)
-    code = 'const unsigned char PROGMEM %s[] = { %s };' % (symbol, code)
+    code = 'const unsigned char %s[] PROGMEM = { %s };' % (symbol, code)
 
     print('// %s' % filename)
     for line in textwrap.wrap(code, 72):
@@ -31,16 +31,24 @@ for idx, filename in enumerate(sys.argv[1:], 1):
             'size': size,
             }
 
-print('void setup_static_endpoints(ESP8266WebServer & server) {')
+print('''
+void setup_static_endpoints(
+        ESP8266WebServer & server,
+        std::function<void(void)> before_fn,
+        std::function<void(void)> after_fn) {''')
 
 for name, info in symbols.items():
     handler = info['symbol'].lower() + '_handler';
-    print('''    auto %s = [&]{
+    print('''    auto %s = [&server, before_fn, after_fn] {
+        if (before_fn)
+            before_fn();
         server.sendHeader("Content-Encoding", "gzip");
         server.send_P(200,
                 "%s",
                 (PGM_P)(%s),
                 %i);
+        if (after_fn)
+            after_fn();
         };''' % (handler, info['mime'], info['symbol'], info['size']))
 
     names = [name]
