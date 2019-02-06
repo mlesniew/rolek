@@ -3,13 +3,16 @@
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>
 
-void setup_static_endpoints(ESP8266WebServer & server);
-
 #define PIN_UP D6
 #define PIN_DN D5
 #define PIN_LT D1
 #define PIN_RT D2
 #define PIN_EN D0
+void setup_static_endpoints(
+        ESP8266WebServer & server,
+        std::function<void(void)> before_fn = nullptr,
+        std::function<void(void)> after_fn = nullptr);
+
 
 #define DEFAULT_INDEX    1
 #define TIME_POWER_ON        500
@@ -59,21 +62,6 @@ void navigate_to(unsigned int index)
     }
 }
 
-struct EndpointDebugger
-{
-    EndpointDebugger() : start_time(millis()) {
-        Serial.println("Handling endpoint " + server.uri());
-        server.sendHeader("Server", "Rolek");
-    }
-
-    ~EndpointDebugger() {
-        Serial.println("Finished handling endpoint " + server.uri());
-        unsigned long elapsed = millis() - start_time;
-        Serial.println("Handler took " + String(elapsed) + " ms");
-    }
-    const unsigned long start_time;
-};
-
 void setup_wifi()
 {
     WiFi.hostname("Rolek");
@@ -110,12 +98,37 @@ void init_output(unsigned int pin)
     digitalWrite(pin, LOW);
 }
 
+unsigned long handler_start;
+
+void before_handler()
+{
+    digitalWrite(PIN_LED, LOW);
+    handler_start = millis();
+    Serial.println("Handling endpoint " + server.uri());
+    server.sendHeader("Server", "Rolek");
+    server.sendHeader("Uptime", uptime());
+    server.sendHeader("Remote-Mode", remote_powered ? "Active" : "Sleep");
+    if (remote_powered)
+        server.sendHeader("Remote-Index", String(current_index));
+    // power the remote, even if only a static endpoint was hit, there is a 
+    // high chance that the remote will be needed soon
+    power(true);
+}
+
+void after_handler()
+{
+    unsigned long elapsed = millis() - handler_start;
+    Serial.println("Done handling endpoint " + server.uri() + " -- elapsed time: " + String(elapsed) + " ms");
+    digitalWrite(PIN_LED, HIGH);
+    // bump standby timer
+    standby_timeout = millis() + 30 * 1000;
+}
+
 void setup_endpoints()
 {
-    setup_static_endpoints(server);
+    setup_static_endpoints(server, before_handler, after_handler);
 
     auto handler = [](bool up){
-        EndpointDebugger d;
         unsigned int mask = 0;
 
         /* extract m parameter */
@@ -158,12 +171,34 @@ void setup_endpoints()
             }
         }
 
-        standby_timeout = millis() + 30 * 1000;
         server.send(200, "text/plain", "OK");
     };
 
-    server.on("/up", [handler]{ handler(true); });
-    server.on("/down", [handler]{ handler(false); });
+    server.on("/up", [handler]{
+            before_handler();
+            handler(true);
+            after_handler();
+            });
+    server.on("/down", [handler]{
+            before_handler();
+            handler(false);
+            after_handler();
+            });
+}
+
+String uptime()
+{
+    const auto now = millis();
+
+    const auto seconds = (now / 1000) % 60;
+    const auto minutes = (now / (60 * 1000)) % 60;
+    const auto hours = (now / (60 * 60 * 1000)) % 24;
+    const auto days = now / (24 * 60 * 60 * 1000);
+
+    return String(days) + " days, "
+        + String(hours) + ":"
+        + (minutes < 10 ? "0" + String(minutes) : String(minutes)) + ":"
+        + (seconds < 10 ? "0" + String(seconds) : String(seconds));
 }
 
 void setup() {
