@@ -225,5 +225,11 @@ void setup() {
 }
 
 void loop() {
+    {
+        // blink the builtin led to indicate that the board is alive
+        const auto blink_phase = (millis() >> 10) & 1;
+        digitalWrite(PIN_LED, blink_phase ? LOW : HIGH);
+    }
+
     server.handleClient();
 }
