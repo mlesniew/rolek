@@ -3,16 +3,17 @@
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>
 
-#define PIN_UP D6
-#define PIN_DN D5
-#define PIN_LT D1
-#define PIN_RT D2
-#define PIN_EN D0
 void setup_static_endpoints(
         ESP8266WebServer & server,
         std::function<void(void)> before_fn = nullptr,
         std::function<void(void)> after_fn = nullptr);
 
+#define PIN_UP D1
+#define PIN_DN D0
+#define PIN_LT D6
+#define PIN_RT D5
+#define PIN_EN D2
+#define PIN_LED D4
 
 #define DEFAULT_INDEX    1
 #define TIME_POWER_ON        500
@@ -210,7 +211,7 @@ void setup() {
     init_output(PIN_DN);
     init_output(PIN_LT);
     init_output(PIN_RT);
-    init_output(LED_BUILTIN);
+    init_output(PIN_LED);
 
     setup_wifi();
 
