@@ -76,6 +76,8 @@ struct EndpointDebugger
 
 void setup_wifi()
 {
+    WiFi.hostname("Rolek");
+
     WiFiManager wifiManager;
 
     wifiManager.setConfigPortalTimeout(60);
