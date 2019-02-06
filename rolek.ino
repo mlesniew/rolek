@@ -23,18 +23,18 @@ void setup_static_endpoints(
 ESP8266WebServer server(80);
 bool remote_powered = false;
 unsigned int current_index = DEFAULT_INDEX;
-unsigned long standby_timeout = 0;
 
 
-void power(bool on) {
-    if (remote_powered == on)
-        return;
-
-    digitalWrite(PIN_EN, on ? HIGH : LOW);
-    delay(on ? TIME_POWER_ON : TIME_POWER_OFF);
-
-    remote_powered = on;
+void reset_remote() {
+    Serial.println("Resetting remote...");
+    digitalWrite(PIN_EN, LOW);
+    delay(1000);
+    digitalWrite(PIN_EN, HIGH);
+    delay(1000);
+    current_index = DEFAULT_INDEX;
+    Serial.println("Reset complete.");
 }
+
 
 void navigate_to(unsigned int index)
 {
@@ -108,12 +108,6 @@ void before_handler()
     Serial.println("Handling endpoint " + server.uri());
     server.sendHeader("Server", "Rolek");
     server.sendHeader("Uptime", uptime());
-    server.sendHeader("Remote-Mode", remote_powered ? "Active" : "Sleep");
-    if (remote_powered)
-        server.sendHeader("Remote-Index", String(current_index));
-    // power the remote, even if only a static endpoint was hit, there is a 
-    // high chance that the remote will be needed soon
-    power(true);
 }
 
 void after_handler()
@@ -121,8 +115,6 @@ void after_handler()
     unsigned long elapsed = millis() - handler_start;
     Serial.println("Done handling endpoint " + server.uri() + " -- elapsed time: " + String(elapsed) + " ms");
     digitalWrite(PIN_LED, HIGH);
-    // bump standby timer
-    standby_timeout = millis() + 30 * 1000;
 }
 
 void setup_endpoints()
@@ -144,8 +136,6 @@ void setup_endpoints()
             }
             mask <<= 1;
         }
-
-        power(true);
 
         Serial.println("Iterating through mask...");
 
@@ -180,9 +170,17 @@ void setup_endpoints()
             handler(true);
             after_handler();
             });
+
     server.on("/down", [handler]{
             before_handler();
             handler(false);
+            after_handler();
+            });
+
+    server.on("/reset", []{
+            before_handler();
+            reset_remote();
+            server.send(200, "text/plain", "OK");
             after_handler();
             });
 }
@@ -213,6 +211,9 @@ void setup() {
     init_output(PIN_RT);
     init_output(PIN_LED);
 
+    // do an initial remote reset
+    reset_remote();
+
     setup_wifi();
 
     Serial.println("Setting up endpoints...");
@@ -224,12 +225,5 @@ void setup() {
 }
 
 void loop() {
-    if (remote_powered && (standby_timeout <= millis()))
-    {
-        Serial.println("Standby timeout elapsed.");
-        power(false);
-        current_index = DEFAULT_INDEX;
-    }
-
     server.handleClient();
 }
