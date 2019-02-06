@@ -1,2 +1,5 @@
 static.ino
 static/config.json
+build/
+builddir/
+*.swp
