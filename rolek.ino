@@ -117,11 +117,21 @@ void after_handler()
     digitalWrite(PIN_LED, HIGH);
 }
 
+struct HandlerGuard {
+    HandlerGuard() { before_handler(); }
+    ~HandlerGuard() { after_handler(); }
+};
+
 void setup_endpoints()
 {
-    setup_static_endpoints(server, before_handler, after_handler);
+    setup_static_endpoints(
+            server,
+            before_handler,
+            after_handler);
 
     auto handler = [](bool up){
+        HandlerGuard g;
+
         unsigned int mask = 0;
 
         /* extract m parameter */
@@ -166,22 +176,17 @@ void setup_endpoints()
     };
 
     server.on("/up", [handler]{
-            before_handler();
             handler(true);
-            after_handler();
             });
 
     server.on("/down", [handler]{
-            before_handler();
             handler(false);
-            after_handler();
             });
 
     server.on("/reset", []{
-            before_handler();
+            HandlerGuard g;
             reset_remote();
             server.send(200, "text/plain", "OK");
-            after_handler();
             });
 }
 
