@@ -14,6 +14,13 @@
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/js/bootstrap.min.js"></script>
     <script>
 
+    function reset() {
+        $("#reset-spinner").show();
+        $.post("/reset").always(function(){
+            $("#reset-spinner").hide();
+        });
+    }
+
     function cmd(mask, up) {
         url = up ? "/up" : "/down";
         if (mask)
@@ -88,6 +95,16 @@
                 <h4 class="display-4">button</h4>
             </div>
 
+        </div>
+
+        <div class="row text-muted text-center align-items-center m-5">
+            <div class="col-12">
+                <span class="border-top"></span>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="reset();">
+                    <span id="reset-spinner" class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="display:none"></span>
+                    Reset remote
+                </button>
+            </div>
         </div>
     </div>
   </body>
