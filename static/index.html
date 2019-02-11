@@ -25,16 +25,25 @@
 
     $(document).ready(function(){
             $.get("config.json", function(data) {
+                updown = $("#smallupdown");
+                label = $("#smalllabel");
+
+                updown.attr("id", null);
+                label.attr("id", null);
 
                 $.each(data, function(key, val) {
-                    code = '<div class="col-3 col-sm-2 col-lg-1 p-2">'
-                    code += '<div class="btn-group-vertical btn-block" role="group">'
-                    code += '<button type="button" class="btn btn-primary" onclick="cmd(' + val + ', 1);">&#9650;</button>'
-                    code += '<button type="button" class="btn btn-primary" onclick="cmd(' + val + ', 0);">&#9660;</button>'
-                    code += '</div></div><div class="col-9 col-sm-10 col-md-4 col-lg-3">'
-                    code += '<h4 class="display-4">' + key + '</h4></div>'
+                    new_updown = updown.clone();
+                    new_label = label.clone();
 
-                    $("#smallbuttons").append(code);
+                    new_updown.find("#btn-up").click(function(){cmd(val, 1);});
+                    new_updown.find("#btn-dn").click(function(){cmd(val, 0);});
+                    new_label.find('h4').text(key);
+
+                    $("#smallbuttons").append(new_updown);
+                    $("#smallbuttons").append(new_label);
+
+                    new_updown.show();
+                    new_label.show();
                 });
 
                 $("#loading").hide();
@@ -68,6 +77,17 @@
         </div>
 
         <div id="smallbuttons" class="row justify-content-left align-items-center">
+
+            <div id="smallupdown" class="col-3 col-sm-2 col-lg-1 p-2" style="display:none">
+                <div class="btn-group-vertical btn-block" role="group">
+                    <button id="btn-up" type="button" class="btn btn-primary">&#9650;</button>
+                    <button id="btn-dn" type="button" class="btn btn-primary">&#9660;</button>
+                </div>
+            </div>
+            <div id="smalllabel" class="col-9 col-sm-10 col-md-4 col-lg-3" style="display:none">
+                <h4 class="display-4">button</h4>
+            </div>
+
         </div>
     </div>
   </body>
