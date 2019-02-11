@@ -1,45 +1,72 @@
 <!doctype html>
-<html>
-<head>
-    <meta content="text/html; charset=utf-8" http-equiv="content-type">
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css">
+
     <title>Rolek</title>
-    <meta content="width=device-width, initial-scale=1" name="viewport">
-    <link href='https://unpkg.com/normalize.css/normalize.css' rel='stylesheet' type='text/css'>
-    <link href="https://unpkg.com/sakura.css/css/sakura.css" rel="stylesheet" type="text/css">
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js"></script>
     <script>
+
+    function cmd(mask, up) {
+        url = up ? "/up" : "/down";
+        if (mask)
+        {
+            url += "?mask=" + mask;
+        }
+        $.post(url);
+    }
+
     $(document).ready(function(){
             $.get("config.json", function(data) {
 
                 $.each(data, function(key, val) {
-                    if (val) {
-                        code = '<input type="button" value="&#8679" onclick="cmd(\'' + val + '\', 1);"/> ';
-                        code += '<input type="button" value="&#8681" onclick="cmd(\'' + val + '\', 0);"/> ';
-                        code += key + '<br>';
-                    }
-                    $("p").append(code);
+                    code = '<div class="col-3 col-sm-2 col-lg-1 p-2">'
+                    code += '<div class="btn-group-vertical btn-block" role="group">'
+                    code += '<button type="button" class="btn btn-primary" onclick="cmd(' + val + ', 1);">&#9650;</button>'
+                    code += '<button type="button" class="btn btn-primary" onclick="cmd(' + val + ', 0);">&#9660;</button>'
+                    code += '</div></div><div class="col-9 col-sm-10 col-md-4 col-lg-3">'
+                    code += '<h4 class="display-4">' + key + '</h4></div>'
+
+                    $("#smallbuttons").append(code);
                 });
 
+                $("#loading").hide();
             });
-        });
-        function cmd(mask, up) {
-            url = up ? "/up" : "/down";
-            if (mask)
-            {
-                url += "?mask=" + mask;
-            }
-            $.post(url);
-        }
+    });
     </script>
-</head>
+  </head>
+  <body>
+    <div class="container">
+        <div class="row justify-content-center align-items-center mt-5 mb-5">
+            <div class="col-12 col-md-4">
+                <h1 class="display-4 text-center">Rolek</h1>
+            </div>
 
-<body>
-    <h1>
-        <input type="button" value="&#8679" onclick="cmd(0, 1);"/>
-        <input type="button" value="&#8681" onclick="cmd(0, 0);"/>
-        Rolek
-    </h1>
-    <p>
-    </p>
-</body>
+            <div class="w-100"></div>
+
+            <div class="col-12 col-sm-6 col-md-4">
+                <div class="btn-group-vertical btn-block" role="group">
+                    <button type="button" class="btn btn-lg btn-primary" onclick="cmd(0, 1);">&#9650;</button>
+                    <button type="button" class="btn btn-lg btn-primary" onclick="cmd(0, 0);">&#9660;</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="loading" class="row align-items-center">
+            <div class="col-12 text-muted text-center">
+                <h4 class="display-4">Loading...</h4>
+            </div>
+        </div>
+
+        <div id="smallbuttons" class="row justify-content-left align-items-center">
+        </div>
+    </div>
+  </body>
 </html>
