@@ -28,7 +28,7 @@ unsigned int current_index = DEFAULT_INDEX;
 void reset_remote() {
     Serial.println("Resetting remote...");
     digitalWrite(PIN_EN, LOW);
-    delay(1000);
+    delay(5000);
     digitalWrite(PIN_EN, HIGH);
     delay(1000);
     current_index = DEFAULT_INDEX;
