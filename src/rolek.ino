@@ -14,12 +14,10 @@ void setup_static_endpoints(
 #define PIN_LED D4
 
 #define DEFAULT_INDEX    1
-#define TIME_POWER_ON        500
-#define TIME_POWER_OFF       100
 
+#define HOSTNAME "Rolek"
 
 ESP8266WebServer server(80);
-bool remote_powered = false;
 unsigned int current_index = DEFAULT_INDEX;
 
 
@@ -63,7 +61,7 @@ void navigate_to(unsigned int index)
 
 void setup_wifi()
 {
-    WiFi.hostname("Rolek");
+    WiFi.hostname(HOSTNAME);
 
     WiFiManager wifiManager;
 
@@ -104,7 +102,7 @@ void before_handler()
     digitalWrite(PIN_LED, LOW);
     handler_start = millis();
     Serial.println("Handling endpoint " + server.uri());
-    server.sendHeader("Server", "Rolek");
+    server.sendHeader("Server", HOSTNAME);
     server.sendHeader("Uptime", uptime());
 }
 
@@ -185,6 +183,21 @@ void setup_endpoints()
             HandlerGuard g;
             reset_remote();
             server.send(200, "text/plain", "OK");
+            });
+
+    server.on("/alive", []{
+            HandlerGuard g;
+            server.send(200, "text/plain", HOSTNAME " is alive");
+            });
+
+    server.on("/version", []{
+            HandlerGuard g;
+            server.send(200, "text/plain", __DATE__ " " __TIME__);
+            });
+
+    server.on("/uptime", []{
+            HandlerGuard g;
+            server.send(200, "text/plain", uptime());
             });
 }
 
