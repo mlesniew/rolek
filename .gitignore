@@ -1,5 +1,5 @@
-static.ino
+src/static.ino
 static/config.json
-build/
-builddir/
 *.swp
+.pioenvs/
+.piolibdeps/
