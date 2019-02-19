@@ -1,10 +1,7 @@
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>
 
-void setup_static_endpoints(
-        ESP8266WebServer & server,
-        std::function<void(void)> before_fn = nullptr,
-        std::function<void(void)> after_fn = nullptr);
+#include "static.h"
 
 #define PIN_UP D1
 #define PIN_DN D0
@@ -120,10 +117,7 @@ struct HandlerGuard {
 
 void setup_endpoints()
 {
-    setup_static_endpoints(
-            server,
-            before_handler,
-            after_handler);
+    setup_static_endpoints<HandlerGuard>(server);
 
     auto handler = [](bool up){
         HandlerGuard g;

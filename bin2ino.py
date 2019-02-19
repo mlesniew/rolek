@@ -1,63 +1,52 @@
 #!/usr/bin/env python3
 
-import os
-import textwrap
-import sys
 import gzip
 import mimetypes
+import os
+import sys
+import textwrap
 
-symbols = {}
+print('''// File generated automatically, do not modify.
+#include "static.h"
+''')
 
-for idx, filename in enumerate(sys.argv[1:], 1):
+symbols = []
+
+def iter_files(directory):
+    directory = os.path.abspath(directory)
+    for root, dirs, files in os.walk(directory):
+        yield from (os.path.join(root, filename) for filename in files)
+
+root = sys.argv[1]
+
+for filename in sorted(iter_files(root)):
     with open(filename, 'rb') as f:
         data = f.read()
     data = gzip.compress(data)
     mime = mimetypes.guess_type(filename)[0]
     size = len(data)
-    name = os.path.basename(filename)
-    symbol = name.upper().replace('.', '_')
+    path = os.path.relpath(filename, root)
+    symbol = path.upper().replace('.', '_').replace('/', '__')
+    code = ', '.join(f'0x{c:02x}' for c in data)
 
-    code = ', '.join('0x%02x' % c for c in data)
-    code = 'const unsigned char %s[] PROGMEM = { %s };' % (symbol, code)
-
-    print('// %s' % filename)
+    print(f'// {path}')
+    print(f'static const unsigned char {symbol}[] PROGMEM = {{')
     for line in textwrap.wrap(code, 72):
-        print(line)
+        print('    ' + line)
+    print('};')
     print()
 
-    symbols[name] = {
-            'mime': mime,
-            'symbol': symbol,
-            'size': size,
-            }
+    path = '/' + path
+    symbols.append((path, mime, symbol, size))
+    if os.path.basename(path.lower()) in ('index.html', 'index.htm'):
+        alias = os.path.dirname(path)
+        symbols.append((alias, mime, symbol, size))
+
 
 print('''
-void setup_static_endpoints(
-        ESP8266WebServer & server,
-        std::function<void(void)> before_fn,
-        std::function<void(void)> after_fn) {''')
+const StaticEndpoint static_endpoints[] = {''')
 
-for name, info in symbols.items():
-    handler = info['symbol'].lower() + '_handler';
-    print('''    auto %s = [&server, before_fn, after_fn] {
-        if (before_fn)
-            before_fn();
-        server.sendHeader("Content-Encoding", "gzip");
-        server.send_P(200,
-                "%s",
-                (PGM_P)(%s),
-                %i);
-        if (after_fn)
-            after_fn();
-        };''' % (handler, info['mime'], info['symbol'], info['size']))
+for name, mime, symbol, size in symbols:
+    print(f'    {{ "{name}", "{mime}", {symbol}, {size} }},');
 
-    names = [name]
-    if name in ('index.htm', 'index.html'):
-        names.append('')
-
-    for alias in names:
-        print('    server.on("/%s", HTTP_GET, %s);' % (alias, handler))
-
-    print()
-
-print('}')
+print('    { nullptr, nullptr, nullptr, 0 } };')
