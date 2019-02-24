@@ -63,7 +63,7 @@ void setup_wifi()
     WiFiManager wifiManager;
 
     wifiManager.setConfigPortalTimeout(60);
-    if (!wifiManager.autoConnect("voodoo", "password"))
+    if (!wifiManager.autoConnect(HOSTNAME, "password"))
     {
         Serial.println("AutoConnect failed, retrying in 15 minutes");
         delay(15 * 60 * 1000);
