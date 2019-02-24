@@ -2,6 +2,7 @@
 #include <WiFiManager.h>
 
 #include "static.h"
+#include "Ticker.h"
 
 #define PIN_UP D1
 #define PIN_DN D0
@@ -56,10 +57,20 @@ void navigate_to(unsigned int index)
     }
 }
 
+void reboot()
+{
+    Serial.println("Reboot...");
+    while (true)
+    {
+        ESP.restart();
+        delay(10 * 1000);
+    }
+}
+
+
 void setup_wifi()
 {
     WiFi.hostname(HOSTNAME);
-
     WiFiManager wifiManager;
 
     wifiManager.setConfigPortalTimeout(60);
@@ -67,23 +78,8 @@ void setup_wifi()
     {
         Serial.println("AutoConnect failed, retrying in 15 minutes");
         delay(15 * 60 * 1000);
-        while (true)
-        {
-            ESP.reset();
-            delay(10 * 1000);
-        }
+        reboot();
     }
-
-    // if we ever get disconnected, reset and try again
-    WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected&) {
-        Serial.println("WiFi disconnected.  Rebooting...");
-        while (true)
-        {
-            delay(3 * 1000);
-            ESP.reset();
-            delay(10 * 1000);
-        }
-    });
 }
 
 void init_output(unsigned int pin)
@@ -211,6 +207,7 @@ String uptime()
 }
 
 void setup() {
+
     Serial.begin(9600);
 
     // init outputs
@@ -220,6 +217,13 @@ void setup() {
     init_output(PIN_LT);
     init_output(PIN_RT);
     init_output(PIN_LED);
+
+    // blink the diode really fast until setup() exits
+    Ticker ticker;
+    ticker.attach_ms(256, []{
+        const auto current_state = digitalRead(PIN_LED);
+        digitalWrite(PIN_LED, !current_state);
+        });
 
     // do an initial remote reset
     reset_remote();
@@ -234,12 +238,36 @@ void setup() {
     Serial.println("Setup complete");
 }
 
-void loop() {
-    {
-        // blink the builtin led to indicate that the board is alive
-        const auto blink_phase = (millis() >> 10) & 1;
-        digitalWrite(PIN_LED, blink_phase ? LOW : HIGH);
+void check_wifi()
+{
+    static unsigned long wifi_last_connected = millis();
+    static auto wifi_last_status = WiFi.status();
+
+    const auto wifi_current_status = WiFi.status();
+    const bool connected = (wifi_current_status == WL_CONNECTED);
+
+    if (wifi_current_status != wifi_last_status) {
+        Serial.println(String("WiFi ") + (connected ? "": "dis") + "connected (status changed to " + String(wifi_current_status) + ")");
+        wifi_last_status = wifi_current_status;
     }
 
+    if (connected) {
+        wifi_last_connected = millis();
+    } else if (millis() - wifi_last_connected > 2 * 60 * 1000) {
+        Serial.println("WiFi has been disconnected for too long.");
+        reboot();
+    }
+
+    {
+        // blink the builtin led to indicate WiFi state
+        const unsigned int mask = connected ? 0b1111 : 0b100;
+        // 1 tick ~= 128ms, 8 ticks ~= 1s
+        const auto blink_phase = (millis() >> 8) & mask;
+        digitalWrite(PIN_LED, (blink_phase == 0) ? LOW : HIGH);
+    }
+}
+
+void loop() {
+    check_wifi();
     server.handleClient();
 }
