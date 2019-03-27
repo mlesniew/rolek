@@ -26,7 +26,7 @@ for filename in sorted(iter_files(root)):
     mime = mimetypes.guess_type(filename)[0]
     size = len(data)
     path = os.path.relpath(filename, root)
-    symbol = path.upper().replace('.', '_').replace('/', '__')
+    symbol = path.upper().replace('-', '_').replace('.', '_').replace('/', '__')
     code = ', '.join(f'0x{c:02x}' for c in data)
 
     print(f'// {path}')
