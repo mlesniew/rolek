@@ -111,6 +111,33 @@ struct HandlerGuard {
     ~HandlerGuard() { after_handler(); }
 };
 
+void process_command(bool up, unsigned int mask)
+{
+    Serial.println("Iterating through mask...");
+    for(unsigned int idx = 0; mask && (idx < 8); ++idx)
+    {
+        unsigned int current = 1 << idx;
+        if (mask & current)
+        {
+            navigate_to(idx);
+            const unsigned int pin = up ? PIN_UP : PIN_DN;
+
+            if (up) {
+                Serial.println("UP");
+            } else {
+                Serial.println("DOWN");
+            }
+
+            digitalWrite(pin, HIGH);
+            delay(250);
+            digitalWrite(pin, LOW);
+            delay(250);
+
+            mask ^= current;
+        }
+    }
+}
+
 void setup_endpoints()
 {
     setup_static_endpoints<HandlerGuard>(server);
@@ -119,8 +146,9 @@ void setup_endpoints()
         HandlerGuard g;
 
         unsigned int mask = 0;
+        unsigned int count = 1;
 
-        /* extract m parameter */
+        /* extract mask parameter */
         if (!server.hasArg("mask"))
             mask = 1;
         else {
@@ -133,29 +161,23 @@ void setup_endpoints()
             mask <<= 1;
         }
 
-        Serial.println("Iterating through mask...");
-
-        for(unsigned int idx = 0; mask && (idx < 8); ++idx)
-        {
-            unsigned int current = 1 << idx;
-            if (mask & current)
+        /* extract count parameter */
+        if (!server.hasArg("count"))
+            count = 1;
+        else {
+            count = server.arg("count").toInt();
+            if ((count < 1) || (count > 5))
             {
-                navigate_to(idx);
-                const unsigned int pin = up ? PIN_UP : PIN_DN;
-
-                if (up) {
-                    Serial.println("UP");
-                } else {
-                    Serial.println("DOWN");
-                }
-
-                digitalWrite(pin, HIGH);
-                delay(250);
-                digitalWrite(pin, LOW);
-                delay(250);
-
-                mask ^= current;
+                server.send(400, "text/plain", "Invalid count value");
+                return;
             }
+        }
+
+        while (true) {
+            process_command(up, mask);
+            if (--count == 0)
+                break;
+            delay(500);
         }
 
         server.send(200, "text/plain", "OK");
