@@ -1,23 +1,17 @@
-STATIC_FILES=$(shell find static -type f)
-STATIC_FILES+=static/config.json
-
-build: src/static.ino src/rolek.ino
+build: src/rolek.ino data/config.json
 	pio run
 
-upload: src/static.ino src/rolek.ino
+upload: src/rolek.ino
 	pio run --target upload
 
-server:
+server: data/config.json
 	cd static; python3 -m http.server
 
 clean:
 	pio run --target clean
-	rm -f src/static.ino static/config.json
+	rm -f data/config.json
 
-static/config.json: config.py
+data/config.json: config.py
 	python3 $< > $@
-
-src/static.ino: $(STATIC_FILES)
-	./bin2ino.py static > $@
 
 .PHONY: build upload server clean

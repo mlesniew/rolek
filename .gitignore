@@ -1,5 +1,6 @@
 src/static.ino
-static/config.json
+data/config.json
 *.swp
 .pioenvs/
 .piolibdeps/
+.pio/
