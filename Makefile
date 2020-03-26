@@ -1,7 +1,7 @@
-build: src/rolek.ino data/config.json
+build: src/rolek.cpp data/config.json
 	pio run
 
-upload: src/rolek.ino
+upload: src/rolek.cpp
 	pio run --target upload
 
 server: data/config.json
