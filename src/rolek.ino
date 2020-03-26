@@ -231,6 +231,17 @@ String uptime()
 void setup() {
     Serial.begin(9600);
 
+    printf("\n\n");
+    printf("8888888b.          888          888     \n");
+    printf("888   Y88b         888          888     \n");
+    printf("888    888         888          888     \n");
+    printf("888   d88P .d88b.  888  .d88b.  888  888\n");
+    printf("8888888P^ d88^^88b 888 d8P  Y8b 888 .88P\n");
+    printf("888 T88b  888  888 888 88888888 888888K \n");
+    printf("888  T88b Y88..88P 888 Y8b.     888 ^88b\n");
+    printf("888   T88b ^Y88P^  888  ^Y8888  888  888\n\n");
+    printf("Built on: " __DATE__ " " __TIME__ "\n\n");
+
     SPIFFS.begin();
 
     // init outputs
