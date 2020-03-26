@@ -86,29 +86,6 @@ void init_output(unsigned int pin)
     digitalWrite(pin, LOW);
 }
 
-unsigned long handler_start;
-
-void before_handler()
-{
-    digitalWrite(PIN_LED, LOW);
-    handler_start = millis();
-    printf("Handling endpoint %s\n", server.uri().c_str());
-    server.sendHeader("Server", HOSTNAME);
-    server.sendHeader("Uptime", uptime());
-}
-
-void after_handler()
-{
-    unsigned long elapsed = millis() - handler_start;
-    printf("Done handling endpoint %s -- elapsed time: %lu ms\n", server.uri().c_str(), elapsed);
-    digitalWrite(PIN_LED, HIGH);
-}
-
-struct HandlerGuard {
-    HandlerGuard() { before_handler(); }
-    ~HandlerGuard() { after_handler(); }
-};
-
 void process_command(bool up, unsigned int mask)
 {
     printf("Iterating through mask...\n");
@@ -139,8 +116,6 @@ void process_command(bool up, unsigned int mask)
 void setup_endpoints()
 {
     auto handler = [](bool up){
-        HandlerGuard g;
-
         unsigned int mask = 0;
         unsigned int count = 1;
 
@@ -188,23 +163,19 @@ void setup_endpoints()
             });
 
     server.on("/reset", []{
-            HandlerGuard g;
             reset_remote();
             server.send(200, "text/plain", "OK");
             });
 
     server.on("/alive", []{
-            HandlerGuard g;
             server.send(200, "text/plain", HOSTNAME " is alive");
             });
 
     server.on("/version", []{
-            HandlerGuard g;
             server.send(200, "text/plain", __DATE__ " " __TIME__);
             });
 
     server.on("/uptime", []{
-            HandlerGuard g;
             server.send(200, "text/plain", uptime());
             });
 
