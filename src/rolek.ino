@@ -20,21 +20,19 @@ unsigned int current_index = DEFAULT_INDEX;
 
 
 void reset_remote() {
-    Serial.println("Resetting remote...");
+    printf("Resetting remote...\n");
     digitalWrite(PIN_EN, LOW);
     delay(5000);
     digitalWrite(PIN_EN, HIGH);
     delay(1000);
     current_index = DEFAULT_INDEX;
-    Serial.println("Reset complete.");
+    printf("Reset complete.\n");
 }
 
 
 void navigate_to(unsigned int index)
 {
-    Serial.println(
-            "current index " + String(current_index) +
-            ", going to " + String(index));
+    printf("Going from index %u to index %u\n", current_index, index);
 
     while (current_index != index)
     {
@@ -43,11 +41,11 @@ void navigate_to(unsigned int index)
         {
             pin = PIN_RT;
             current_index++;
-            Serial.println("RIGHT");
+            printf("RIGHT\n");
         } else {
             pin = PIN_LT;
             current_index--;
-            Serial.println("LEFT");
+            printf("LEFT\n");
         }
 
         digitalWrite(pin, HIGH);
@@ -59,7 +57,7 @@ void navigate_to(unsigned int index)
 
 void reboot()
 {
-    Serial.println("Reboot...");
+    printf("Reboot...\n");
     while (true)
     {
         ESP.restart();
@@ -76,7 +74,7 @@ void setup_wifi()
     wifiManager.setConfigPortalTimeout(60);
     if (!wifiManager.autoConnect(HOSTNAME, "password"))
     {
-        Serial.println("AutoConnect failed, retrying in 15 minutes");
+        printf("AutoConnect failed, retrying in 15 minutes...\n");
         delay(15 * 60 * 1000);
         reboot();
     }
@@ -94,7 +92,7 @@ void before_handler()
 {
     digitalWrite(PIN_LED, LOW);
     handler_start = millis();
-    Serial.println("Handling endpoint " + server.uri());
+    printf("Handling endpoint %s\n", server.uri().c_str());
     server.sendHeader("Server", HOSTNAME);
     server.sendHeader("Uptime", uptime());
 }
@@ -102,7 +100,7 @@ void before_handler()
 void after_handler()
 {
     unsigned long elapsed = millis() - handler_start;
-    Serial.println("Done handling endpoint " + server.uri() + " -- elapsed time: " + String(elapsed) + " ms");
+    printf("Done handling endpoint %s -- elapsed time: %lu ms\n", server.uri().c_str(), elapsed);
     digitalWrite(PIN_LED, HIGH);
 }
 
@@ -113,7 +111,7 @@ struct HandlerGuard {
 
 void process_command(bool up, unsigned int mask)
 {
-    Serial.println("Iterating through mask...");
+    printf("Iterating through mask...\n");
     for(unsigned int idx = 0; mask && (idx < 8); ++idx)
     {
         unsigned int current = 1 << idx;
@@ -123,9 +121,9 @@ void process_command(bool up, unsigned int mask)
             const unsigned int pin = up ? PIN_UP : PIN_DN;
 
             if (up) {
-                Serial.println("UP");
+                printf("UP\n");
             } else {
-                Serial.println("DOWN");
+                printf("DOWN\n");
             }
 
             digitalWrite(pin, HIGH);
@@ -264,12 +262,12 @@ void setup() {
 
     setup_wifi();
 
-    Serial.println("Setting up endpoints...");
+    printf("Setting up endpoints...\n");
     setup_endpoints();
 
-    Serial.println("Starting up server...");
+    printf("Starting up server...\n");
     server.begin();
-    Serial.println("Setup complete");
+    printf("Setup complete\n");
 }
 
 void check_wifi()
@@ -281,14 +279,14 @@ void check_wifi()
     const bool connected = (wifi_current_status == WL_CONNECTED);
 
     if (wifi_current_status != wifi_last_status) {
-        Serial.println(String("WiFi ") + (connected ? "": "dis") + "connected (status changed to " + String(wifi_current_status) + ")");
+        printf("WiFi %s (status changed to %i)\n", connected ? "connected" : "disconnected", wifi_current_status);
         wifi_last_status = wifi_current_status;
     }
 
     if (connected) {
         wifi_last_connected = millis();
     } else if (millis() - wifi_last_connected > 2 * 60 * 1000) {
-        Serial.println("WiFi has been disconnected for too long.");
+        printf("WiFi has been disconnected for too long.\n");
         reboot();
     }
 
