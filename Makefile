@@ -5,7 +5,7 @@ upload: src/rolek.ino
 	pio run --target upload
 
 server: data/config.json
-	cd static; python3 -m http.server
+	cd data; python3 -m http.server
 
 clean:
 	pio run --target clean
