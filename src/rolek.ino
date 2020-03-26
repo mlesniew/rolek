@@ -1,7 +1,7 @@
 #include <ESP8266WebServer.h>
+#include <FS.h>
 #include <WiFiManager.h>
 
-#include "static.h"
 #include "Ticker.h"
 
 #define PIN_UP D1
@@ -140,8 +140,6 @@ void process_command(bool up, unsigned int mask)
 
 void setup_endpoints()
 {
-    setup_static_endpoints<HandlerGuard>(server);
-
     auto handler = [](bool up){
         HandlerGuard g;
 
@@ -211,6 +209,8 @@ void setup_endpoints()
             HandlerGuard g;
             server.send(200, "text/plain", uptime());
             });
+
+    server.serveStatic("/", SPIFFS, "/");
 }
 
 String uptime()
@@ -229,8 +229,9 @@ String uptime()
 }
 
 void setup() {
-
     Serial.begin(9600);
+
+    SPIFFS.begin();
 
     // init outputs
     init_output(PIN_EN);
