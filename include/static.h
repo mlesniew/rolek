@@ -2,6 +2,7 @@
 #define STATIC_H
 
 #include <Arduino.h>
+#include <ESP8266WebServer.h>
 
 struct StaticEndpoint {
     const char * name;
@@ -9,8 +10,6 @@ struct StaticEndpoint {
     const unsigned char * data;
     unsigned long size;
 };
-
-class ESP8266WebServer;
 
 extern const StaticEndpoint static_endpoints[];
 
