@@ -1,8 +1,7 @@
 #include <ESP8266WebServer.h>
 #include <FS.h>
+#include <Ticker.h>
 #include <WiFiManager.h>
-
-#include "Ticker.h"
 
 #define PIN_UP D1
 #define PIN_DN D0
@@ -11,13 +10,18 @@
 #define PIN_EN D2
 #define PIN_LED D4
 
-#define DEFAULT_INDEX    1
+#define DEFAULT_INDEX 1
 
 #define HOSTNAME "Rolek"
+#ifndef PASSWORD
+#define PASSWORD "password"
+#endif
 
-ESP8266WebServer server(80);
-unsigned int current_index = DEFAULT_INDEX;
+ESP8266WebServer server{80};
+unsigned int current_index{DEFAULT_INDEX};
 
+enum direction_t { DIRECTION_DOWN, DIRECTION_UP };
+enum button_t { BUTTON_DOWN, BUTTON_UP, BUTTON_LEFT, BUTTON_RIGHT };
 
 void reset_remote() {
     printf("Resetting remote...\n");
@@ -29,6 +33,51 @@ void reset_remote() {
     printf("Reset complete.\n");
 }
 
+void push(button_t button, unsigned long time) {
+    const char * desc;
+    unsigned int pin = 0;
+    switch (button) {
+        case BUTTON_DOWN:
+            desc = "DOWN";
+            pin = PIN_DN;
+            break;
+        case BUTTON_UP:
+            desc = "UP";
+            pin = PIN_DN;
+            break;
+        case BUTTON_LEFT:
+            desc = "LEFT";
+            pin = PIN_LT;
+            break;
+        case BUTTON_RIGHT:
+            desc = "RIGHT";
+            pin = PIN_RT;
+            break;
+        default:
+            return;
+    }
+
+    printf("Pressing %s button (pin %u) for %lu ms.\n", desc, pin, time);
+
+    digitalWrite(pin, HIGH);
+    delay(time);
+    digitalWrite(pin, LOW);
+    delay(time);
+}
+
+const char * uptime()
+{
+    static char buf[100];
+    const auto now = millis();
+
+    const unsigned long seconds = (now / 1000) % 60;
+    const unsigned long minutes = (now / (60 * 1000)) % 60;
+    const unsigned long hours = (now / (60 * 60 * 1000)) % 24;
+    const unsigned long days = now / (24 * 60 * 60 * 1000);
+
+    snprintf(buf, 100, "%lu day%s, %lu:%02lu:%02lu", days, days == 1 ? "" : "s", hours, minutes, seconds);
+    return buf;
+}
 
 void navigate_to(unsigned int index)
 {
@@ -36,22 +85,14 @@ void navigate_to(unsigned int index)
 
     while (current_index != index)
     {
-        unsigned int pin;
         if (current_index < index)
         {
-            pin = PIN_RT;
+            push(BUTTON_RIGHT, 100);
             current_index++;
-            printf("RIGHT\n");
         } else {
-            pin = PIN_LT;
+            push(BUTTON_LEFT, 100);
             current_index--;
-            printf("LEFT\n");
         }
-
-        digitalWrite(pin, HIGH);
-        delay(100);
-        digitalWrite(pin, LOW);
-        delay(100);
     }
 }
 
@@ -65,14 +106,13 @@ void reboot()
     }
 }
 
-
 void setup_wifi()
 {
     WiFi.hostname(HOSTNAME);
     WiFiManager wifiManager;
 
     wifiManager.setConfigPortalTimeout(60);
-    if (!wifiManager.autoConnect(HOSTNAME, "password"))
+    if (!wifiManager.autoConnect(HOSTNAME, PASSWORD))
     {
         printf("AutoConnect failed, retrying in 15 minutes...\n");
         delay(15 * 60 * 1000);
@@ -86,28 +126,17 @@ void init_output(unsigned int pin)
     digitalWrite(pin, LOW);
 }
 
-void process_command(bool up, unsigned int mask)
+void process_command(direction_t direction, unsigned int mask)
 {
-    printf("Iterating through mask...\n");
+    printf("Iterating through mask 0x%02x %s selected blinds...\n",
+           mask, direction == DIRECTION_UP ? "opening" : "closing");
     for(unsigned int idx = 0; mask && (idx < 8); ++idx)
     {
         unsigned int current = 1 << idx;
         if (mask & current)
         {
             navigate_to(idx);
-            const unsigned int pin = up ? PIN_UP : PIN_DN;
-
-            if (up) {
-                printf("UP\n");
-            } else {
-                printf("DOWN\n");
-            }
-
-            digitalWrite(pin, HIGH);
-            delay(250);
-            digitalWrite(pin, LOW);
-            delay(250);
-
+            push(direction == DIRECTION_UP ? BUTTON_UP : BUTTON_DOWN, 250);
             mask ^= current;
         }
     }
@@ -115,7 +144,7 @@ void process_command(bool up, unsigned int mask)
 
 void setup_endpoints()
 {
-    auto handler = [](bool up){
+    auto handler = [](direction_t direction){
         unsigned int mask = 0;
         unsigned int count = 1;
 
@@ -145,7 +174,7 @@ void setup_endpoints()
         }
 
         while (true) {
-            process_command(up, mask);
+            process_command(direction, mask);
             if (--count == 0)
                 break;
             delay(500);
@@ -155,11 +184,11 @@ void setup_endpoints()
     };
 
     server.on("/up", [handler]{
-            handler(true);
+            handler(DIRECTION_UP);
             });
 
     server.on("/down", [handler]{
-            handler(false);
+            handler(DIRECTION_DOWN);
             });
 
     server.on("/reset", []{
@@ -182,21 +211,6 @@ void setup_endpoints()
     server.serveStatic("/", SPIFFS, "/");
 }
 
-String uptime()
-{
-    const auto now = millis();
-
-    const auto seconds = (now / 1000) % 60;
-    const auto minutes = (now / (60 * 1000)) % 60;
-    const auto hours = (now / (60 * 60 * 1000)) % 24;
-    const auto days = now / (24 * 60 * 60 * 1000);
-
-    return String(days) + " days, "
-        + String(hours) + ":"
-        + (minutes < 10 ? "0" + String(minutes) : String(minutes)) + ":"
-        + (seconds < 10 ? "0" + String(seconds) : String(seconds));
-}
-
 void setup() {
     Serial.begin(9600);
 
@@ -211,34 +225,36 @@ void setup() {
     printf("888   T88b ^Y88P^  888  ^Y8888  888  888\n\n");
     printf("Built on: " __DATE__ " " __TIME__ "\n\n");
 
-    SPIFFS.begin();
-
-    // init outputs
-    init_output(PIN_EN);
-    init_output(PIN_UP);
-    init_output(PIN_DN);
-    init_output(PIN_LT);
-    init_output(PIN_RT);
-    init_output(PIN_LED);
-
     // blink the diode really fast until setup() exits
+    init_output(PIN_LED);
     Ticker ticker;
     ticker.attach_ms(256, []{
         const auto current_state = digitalRead(PIN_LED);
         digitalWrite(PIN_LED, !current_state);
         });
 
-    // do an initial remote reset
-    reset_remote();
+    printf("Initializing outputs...\n");
+    init_output(PIN_EN);
+    init_output(PIN_UP);
+    init_output(PIN_DN);
+    init_output(PIN_LT);
+    init_output(PIN_RT);
+
+    printf("Initializing file system...\n");
+    SPIFFS.begin();
 
     setup_wifi();
 
     printf("Setting up endpoints...\n");
     setup_endpoints();
 
+    // do an initial remote reset
+    reset_remote();
+
     printf("Starting up server...\n");
     server.begin();
-    printf("Setup complete\n");
+
+    printf("Setup complete.\n");
 }
 
 void check_wifi()
