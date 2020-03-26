@@ -8,7 +8,7 @@ data = {
     'Parter': B1 | B2 | B3,
     'Piętro': B4 | B5 | B6 | B7,
     'Front': B1 | B6 | B7,
-    'Ogrod': B2 | B3 | B4 | B5,
+    'Ogród': B2 | B3 | B4 | B5,
     'Salon': B2 | B3,
     'Sypialnia': B4,
     'Hania': B5,
