@@ -43,7 +43,7 @@ void push(button_t button, unsigned long time) {
             break;
         case BUTTON_UP:
             desc = "UP";
-            pin = PIN_DN;
+            pin = PIN_UP;
             break;
         case BUTTON_LEFT:
             desc = "LEFT";
