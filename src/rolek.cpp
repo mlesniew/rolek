@@ -208,6 +208,8 @@ void setup_endpoints()
             server.send(200, "text/plain", uptime());
             });
 
+    server.serveStatic("/", SPIFFS, "/index.html");
+
     server.serveStatic("/", SPIFFS, "/");
 }
 
