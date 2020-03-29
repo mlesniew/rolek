@@ -38,7 +38,10 @@
         {
             url += "?mask=" + mask;
         }
-        $.post(url);
+        $(".btn").prop("disabled", true);
+        $.post(url).always(function() {
+            $(".btn").prop("disabled", false);
+        });
     }
 
     $(document).ready(function(){
