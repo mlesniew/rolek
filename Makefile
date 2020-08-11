@@ -1,4 +1,4 @@
-build: src/rolek.cpp data/config.json
+build: src/rolek.cpp
 	pio run
 
 upload: src/rolek.cpp
@@ -12,9 +12,5 @@ server: data/config.json
 
 clean:
 	pio run --target clean
-	rm -f data/config.json
-
-data/config.json: config.py
-	python3 $< > $@
 
 .PHONY: build upload server clean
