@@ -142,23 +142,53 @@ void process_command(direction_t direction, unsigned int mask)
     }
 }
 
+int mask_from_comma_separated_list(const String & str) {
+    int ret = 0;
+    int start_idx = 0;
+
+    printf("Decoding mask %s\n", str.c_str());
+
+    while (1) {
+        int comma_idx = str.indexOf(',', start_idx);
+
+        const long value = (comma_idx < 0 ? str.substring(start_idx) : str.substring(start_idx, comma_idx)).toInt();
+        if ((value < 1) || (value > 8)) {
+            // error, invalid value or error converting
+            printf("Error at char %i.\n", start_idx);
+            return 0;
+        }
+
+        printf(" * %li\n", value);
+        ret |= 1 << (value - 1);
+
+        if (comma_idx < 0)
+            break;
+
+        // next time start searching after the comma
+        start_idx = comma_idx + 1;
+    }
+    printf("Parsing complete, mask: %i\n", ret);
+
+    return ret;
+}
+
 void setup_endpoints()
 {
-    auto handler = [](direction_t direction){
+    auto handler = [](direction_t direction) {
         unsigned int mask = 0;
         unsigned int count = 1;
 
-        /* extract mask parameter */
-        if (!server.hasArg("mask"))
+        /* extract blinds parameter */
+        if (!server.hasArg("blinds")) {
+            // no argument, use all blinds
             mask = 1;
-        else {
-            mask = server.arg("mask").toInt();
-            if (!mask)
+        } else {
+            mask = mask_from_comma_separated_list(server.arg("blinds")) << 1;
+            if (mask <= 0)
             {
-                server.send(400, "text/plain", "Malformed mask");
+                server.send(400, "text/plain", "Invalid blinds argument");
                 return;
             }
-            mask <<= 1;
         }
 
         /* extract count parameter */
@@ -168,28 +198,21 @@ void setup_endpoints()
             count = server.arg("count").toInt();
             if ((count < 1) || (count > 5))
             {
-                server.send(400, "text/plain", "Invalid count value");
+                server.send(400, "text/plain", "Invalid count argument");
                 return;
             }
         }
 
-        while (true) {
+        do {
             process_command(direction, mask);
-            if (--count == 0)
-                break;
             delay(500);
-        }
+        } while (--count > 0);
 
         server.send(200, "text/plain", "OK");
     };
 
-    server.on("/up", [handler]{
-            handler(DIRECTION_UP);
-            });
-
-    server.on("/down", [handler]{
-            handler(DIRECTION_DOWN);
-            });
+    server.on("/up", [handler]{ handler(DIRECTION_UP); });
+    server.on("/down", [handler]{ handler(DIRECTION_DOWN); });
 
     server.on("/reset", []{
             reset_remote();

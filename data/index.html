@@ -32,11 +32,11 @@
         });
     }
 
-    function cmd(mask, up) {
-        url = up ? "/up" : "/down";
-        if (mask)
+    function send_request(blinds, command) {
+        url = "/" + command
+        if (blinds.length > 0)
         {
-            url += "?mask=" + mask;
+            url += "?blinds=" + blinds.join(",");
         }
         $(".btn").prop("disabled", true);
         $.post(url).always(function() {
@@ -47,27 +47,29 @@
     $(document).ready(function(){
             $.get("config.json", function(data) {
                 updown = $("#smallupdown");
-                label = $("#smalllabel");
 
                 updown.attr("id", null);
-                label.attr("id", null);
 
-                $.each(data, function(key, val) {
-                    new_updown = updown.clone();
-                    new_label = label.clone();
+                $("#loading").fadeOut("fast", function() {
 
-                    new_updown.find("#btn-up").click(function(){cmd(val, 1);});
-                    new_updown.find("#btn-dn").click(function(){cmd(val, 0);});
-                    new_label.find('h4').text(key);
+                    delay = 250;
 
-                    $("#smallbuttons").append(new_updown);
-                    $("#smallbuttons").append(new_label);
+                    $.each(data, function(key, val) {
+                        new_updown = updown.clone();
 
-                    new_updown.show();
-                    new_label.show();
+                        new_updown.find("#btn-up").click(function(){send_request(val, "up");});
+                        new_updown.find("#btn-st").text(key);
+                        new_updown.find("#btn-dn").click(function(){send_request(val, "down");});
+
+                        $("#smallbuttons").append(new_updown);
+
+                        $(new_updown).delay(delay).fadeIn();
+
+                        delay += 25;
+                    });
+
                 });
 
-                $("#loading").hide();
             });
     });
     </script>
@@ -82,9 +84,10 @@
             <div class="w-100"></div>
 
             <div class="col-12 col-sm-6 col-md-4">
-                <div class="btn-group-vertical btn-block" role="group">
-                    <button type="button" class="btn btn-lg btn-primary" onclick="cmd(0, 1);">&#9650;</button>
-                    <button type="button" class="btn btn-lg btn-primary" onclick="cmd(0, 0);">&#9660;</button>
+                <div class="btn-group btn-group-lg btn-block" role="group">
+                    <button type="button" class="btn btn-lg btn-primary" onclick="send_request([], 'up');">&#9650;</button>
+                    <button type="button" class="btn btn-lg btn-primary" onclick="send_request([], 'stop');">&#8728;</button>
+                    <button type="button" class="btn btn-lg btn-primary" onclick="send_request([], 'down');">&#9660;</button>
                 </div>
             </div>
         </div>
@@ -99,14 +102,12 @@
 
         <div id="smallbuttons" class="row justify-content-left align-items-center">
 
-            <div id="smallupdown" class="col-3 col-sm-2 col-lg-1 p-2" style="display:none">
-                <div class="btn-group-vertical btn-block" role="group">
+            <div id="smallupdown" class="col-12 col-sm-6 col-md-4 p-1" style="display:none">
+                <div class="btn-group btn-group-lg btn-block" role="group">
                     <button id="btn-up" type="button" class="btn btn-primary">&#9650;</button>
+                    <button id="btn-st" type="button" class="btn btn-block btn-primary">&#8728;</button>
                     <button id="btn-dn" type="button" class="btn btn-primary">&#9660;</button>
                 </div>
-            </div>
-            <div id="smalllabel" class="col-9 col-sm-10 col-md-4 col-lg-3" style="display:none">
-                <h4 class="display-4">button</h4>
             </div>
 
         </div>
