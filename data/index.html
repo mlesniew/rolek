@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
     <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootswatch/4.5.2/pulse/bootstrap.min.css" integrity="sha384-L7+YG8QLqGvxQGffJ6utDKFwmGwtLcCjtwvonVZR/Ba2VzhpMwBz51GaXnUsuYbj" crossorigin="anonymous">
 
     <title>Rolek</title>
 
@@ -68,6 +68,9 @@
                         delay += 25;
                     });
 
+                delay += 225;
+                $("#footer").delay(delay).fadeIn();
+
                 });
 
             });
@@ -85,9 +88,9 @@
 
             <div class="col-12 col-sm-6 col-md-4">
                 <div class="btn-group btn-group-lg btn-block" role="group">
-                    <button type="button" class="btn btn-lg btn-primary" onclick="send_request([], 'up');">&#9650;</button>
-                    <button type="button" class="btn btn-lg btn-primary" onclick="send_request([], 'stop');">&#8728;</button>
                     <button type="button" class="btn btn-lg btn-primary" onclick="send_request([], 'down');">&#9660;</button>
+                    <button type="button" class="btn btn-lg btn-primary" onclick="send_request([], 'stop');">&#8728;</button>
+                    <button type="button" class="btn btn-lg btn-primary" onclick="send_request([], 'up');">&#9650;</button>
                 </div>
             </div>
         </div>
@@ -104,15 +107,15 @@
 
             <div id="smallupdown" class="col-12 col-sm-6 col-md-4 p-1" style="display:none">
                 <div class="btn-group btn-group-lg btn-block" role="group">
-                    <button id="btn-up" type="button" class="btn btn-primary">&#9650;</button>
-                    <button id="btn-st" type="button" class="btn btn-block btn-primary">&#8728;</button>
                     <button id="btn-dn" type="button" class="btn btn-primary">&#9660;</button>
+                    <button id="btn-st" type="button" class="btn btn-block btn-primary">&#8728;</button>
+                    <button id="btn-up" type="button" class="btn btn-primary">&#9650;</button>
                 </div>
             </div>
 
         </div>
 
-        <div class="row text-muted text-center align-items-center m-5">
+        <div class="row text-muted text-center align-items-center m-5" id="footer" style="display:none">
             <div class="col-12">
                 <span class="border-top"></span>
                 <button type="button" class="btn btn-sm btn-secondary" onclick="reset();">
@@ -120,15 +123,17 @@
                     Reset remote
                 </button>
             </div>
-        </div>
 
-        <hr>
-        <div class="row text-muted text-center text-small align-items-center">
-            <div class="col-12">
+            <div class="col-12 mt-5">
+                <hr >
+            </div>
+
+            <div class="col-12 text-muted text-center text-small align-items-center">
                 <span class="border-top"></span>
                 <p>Created by <a href="https://github.com/mlesniew">Michał Leśniewski</a>, source available <a href="https://github.com/mlesniew/rolek">on GitHub</a>.</p>
             </div>
         </div>
+
     </div>
   </body>
 </html>
