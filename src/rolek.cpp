@@ -1,5 +1,5 @@
 #include <ESP8266WebServer.h>
-#include <FS.h>
+#include <LittleFS.h>
 
 #include <utils/led.h>
 #include <utils/wifi_control.h>
@@ -211,9 +211,9 @@ void setup_endpoints()
             server.send(200, F("text/plain"), uptime());
             });
 
-    server.serveStatic("/", SPIFFS, "/index.html");
+    server.serveStatic("/", LittleFS, "/index.html");
 
-    server.serveStatic("/", SPIFFS, "/");
+    server.serveStatic("/", LittleFS, "/");
 }
 
 void setup() {
@@ -244,7 +244,7 @@ void setup() {
     wifi_control.init(WiFiInitMode::automatic, HOSTNAME, PASSWORD);
 
     Serial.println(F("Initializing file system..."));
-    SPIFFS.begin();
+    LittleFS.begin();
 
     Serial.println(F("Setting up endpoints..."));
     setup_endpoints();
