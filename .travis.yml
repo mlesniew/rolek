@@ -1,0 +1,24 @@
+os: linux
+dist: xenial
+language: python
+python:
+    - "3.8"
+
+cache:
+    directories:
+        - "~/.platformio"
+
+git:
+    submodules: false
+
+before_install:
+    - sed -i 's#git@github.com:#https://github.com/#' .gitmodules
+    - git submodule update --init --recursive
+
+install:
+    - pip install -U platformio
+    - platformio update
+
+script:
+    - platformio run
+
