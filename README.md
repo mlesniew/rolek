@@ -1,4 +1,8 @@
 # Rolek
+
+[![Build Status](https://travis-ci.org/mlesniew/rolek.svg?branch=master)](https://travis-ci.org/mlesniew/rolek)
+![License](https://img.shields.io/github/license/mlesniew/rolek)
+
 Control your electric window blinds through WiFi
 
 Rolek is a simple electronic project for controlling electric window blinds through WiFi using a simple web page.
