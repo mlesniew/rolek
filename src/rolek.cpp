@@ -1,7 +1,8 @@
 #include <ESP8266WebServer.h>
 #include <FS.h>
-#include <Ticker.h>
-#include <WiFiManager.h>
+
+#include <utils/led.h>
+#include <utils/wifi_control.h>
 
 #define PIN_UP D1
 #define PIN_DN D0
@@ -17,7 +18,10 @@
 #define PASSWORD "password"
 #endif
 
+BlinkingLed wifi_led(PIN_LED, 0, 91, true);
+WiFiControl wifi_control(wifi_led);
 ESP8266WebServer server{80};
+
 unsigned int current_index{DEFAULT_INDEX};
 
 enum direction_t { DIRECTION_DOWN, DIRECTION_UP };
@@ -93,30 +97,6 @@ void navigate_to(unsigned int index)
             push(BUTTON_LEFT, 100);
             current_index--;
         }
-    }
-}
-
-void reboot()
-{
-    printf("Reboot...\n");
-    while (true)
-    {
-        ESP.restart();
-        delay(10 * 1000);
-    }
-}
-
-void setup_wifi()
-{
-    WiFi.hostname(HOSTNAME);
-    WiFiManager wifiManager;
-
-    wifiManager.setConfigPortalTimeout(60);
-    if (!wifiManager.autoConnect(HOSTNAME, PASSWORD))
-    {
-        printf("AutoConnect failed, retrying in 15 minutes...\n");
-        delay(15 * 60 * 1000);
-        reboot();
     }
 }
 
@@ -251,12 +231,6 @@ void setup() {
     printf("Built on: " __DATE__ " " __TIME__ "\n\n");
 
     // blink the diode really fast until setup() exits
-    init_output(PIN_LED);
-    Ticker ticker;
-    ticker.attach_ms(256, []{
-        const auto current_state = digitalRead(PIN_LED);
-        digitalWrite(PIN_LED, !current_state);
-        });
 
     printf("Initializing outputs...\n");
     init_output(PIN_EN);
@@ -265,10 +239,10 @@ void setup() {
     init_output(PIN_LT);
     init_output(PIN_RT);
 
+    wifi_control.init(WiFiInitMode::automatic, HOSTNAME, PASSWORD);
+
     printf("Initializing file system...\n");
     SPIFFS.begin();
-
-    setup_wifi();
 
     printf("Setting up endpoints...\n");
     setup_endpoints();
@@ -282,36 +256,7 @@ void setup() {
     printf("Setup complete.\n");
 }
 
-void check_wifi()
-{
-    static unsigned long wifi_last_connected = millis();
-    static auto wifi_last_status = WiFi.status();
-
-    const auto wifi_current_status = WiFi.status();
-    const bool connected = (wifi_current_status == WL_CONNECTED);
-
-    if (wifi_current_status != wifi_last_status) {
-        printf("WiFi %s (status changed to %i)\n", connected ? "connected" : "disconnected", wifi_current_status);
-        wifi_last_status = wifi_current_status;
-    }
-
-    if (connected) {
-        wifi_last_connected = millis();
-    } else if (millis() - wifi_last_connected > 2 * 60 * 1000) {
-        printf("WiFi has been disconnected for too long.\n");
-        reboot();
-    }
-
-    {
-        // blink the builtin led to indicate WiFi state
-        const unsigned int mask = connected ? 0b1111 : 0b100;
-        // 1 tick ~= 128ms, 8 ticks ~= 1s
-        const auto blink_phase = (millis() >> 8) & mask;
-        digitalWrite(PIN_LED, (blink_phase == 0) ? LOW : HIGH);
-    }
-}
-
 void loop() {
-    check_wifi();
+    wifi_control.tick();
     server.handleClient();
 }

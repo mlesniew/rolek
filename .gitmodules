@@ -1,0 +1,3 @@
+[submodule "lib/arduino_utils"]
+	path = lib/arduino_utils
+	url = git@github.com:mlesniew/arduino_utils.git
