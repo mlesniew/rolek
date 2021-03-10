@@ -28,13 +28,13 @@ enum direction_t { DIRECTION_DOWN, DIRECTION_UP };
 enum button_t { BUTTON_DOWN, BUTTON_UP, BUTTON_LEFT, BUTTON_RIGHT };
 
 void reset_remote() {
-    printf("Resetting remote...\n");
+    Serial.println(F("Resetting remote..."));
     digitalWrite(PIN_EN, LOW);
     delay(5000);
     digitalWrite(PIN_EN, HIGH);
     delay(1000);
     current_index = DEFAULT_INDEX;
-    printf("Reset complete.\n");
+    Serial.println(F("Reset complete."));
 }
 
 void push(button_t button, unsigned long time) {
@@ -166,7 +166,7 @@ void setup_endpoints()
             mask = mask_from_comma_separated_list(server.arg("blinds")) << 1;
             if (mask <= 0)
             {
-                server.send(400, "text/plain", "Invalid blinds argument");
+                server.send(400, F("text/plain"), F("Invalid blinds argument"));
                 return;
             }
         }
@@ -178,7 +178,7 @@ void setup_endpoints()
             count = server.arg("count").toInt();
             if ((count < 1) || (count > 5))
             {
-                server.send(400, "text/plain", "Invalid count argument");
+                server.send(400, F("text/plain"), F("Invalid count argument"));
                 return;
             }
         }
@@ -188,7 +188,7 @@ void setup_endpoints()
             delay(500);
         } while (--count > 0);
 
-        server.send(200, "text/plain", "OK");
+        server.send(200, F("text/plain"), F("OK"));
     };
 
     server.on("/up", [handler]{ handler(DIRECTION_UP); });
@@ -196,19 +196,19 @@ void setup_endpoints()
 
     server.on("/reset", []{
             reset_remote();
-            server.send(200, "text/plain", "OK");
+            server.send(200, F("text/plain"), F("OK"));
             });
 
     server.on("/alive", []{
-            server.send(200, "text/plain", HOSTNAME " is alive");
+            server.send(200, F("text/plain"), F(HOSTNAME " is alive"));
             });
 
     server.on("/version", []{
-            server.send(200, "text/plain", __DATE__ " " __TIME__);
+            server.send(200, F("text/plain"), F(__DATE__ " " __TIME__));
             });
 
     server.on("/uptime", []{
-            server.send(200, "text/plain", uptime());
+            server.send(200, F("text/plain"), uptime());
             });
 
     server.serveStatic("/", SPIFFS, "/index.html");
@@ -219,20 +219,22 @@ void setup_endpoints()
 void setup() {
     Serial.begin(9600);
 
-    printf("\n\n");
-    printf("8888888b.          888          888     \n");
-    printf("888   Y88b         888          888     \n");
-    printf("888    888         888          888     \n");
-    printf("888   d88P .d88b.  888  .d88b.  888  888\n");
-    printf("8888888P^ d88^^88b 888 d8P  Y8b 888 .88P\n");
-    printf("888 T88b  888  888 888 88888888 888888K \n");
-    printf("888  T88b Y88..88P 888 Y8b.     888 ^88b\n");
-    printf("888   T88b ^Y88P^  888  ^Y8888  888  888\n\n");
-    printf("Built on: " __DATE__ " " __TIME__ "\n\n");
+    Serial.print(F(
+        "\n\n"
+        "8888888b.          888          888     \n"
+        "888   Y88b         888          888     \n"
+        "888    888         888          888     \n"
+        "888   d88P .d88b.  888  .d88b.  888  888\n"
+        "8888888P^ d88^^88b 888 d8P  Y8b 888 .88P\n"
+        "888 T88b  888  888 888 88888888 888888K \n"
+        "888  T88b Y88..88P 888 Y8b.     888 ^88b\n"
+        "888   T88b ^Y88P^  888  ^Y8888  888  888\n"
+        "\n"
+        "https://github.com/mlesniew/rolek\n"
+        "\n"
+        "Built on: " __DATE__ " " __TIME__ "\n\n"));
 
-    // blink the diode really fast until setup() exits
-
-    printf("Initializing outputs...\n");
+    Serial.println(F("Initializing outputs..."));
     init_output(PIN_EN);
     init_output(PIN_UP);
     init_output(PIN_DN);
@@ -241,19 +243,19 @@ void setup() {
 
     wifi_control.init(WiFiInitMode::automatic, HOSTNAME, PASSWORD);
 
-    printf("Initializing file system...\n");
+    Serial.println(F("Initializing file system..."));
     SPIFFS.begin();
 
-    printf("Setting up endpoints...\n");
+    Serial.println(F("Setting up endpoints..."));
     setup_endpoints();
 
     // do an initial remote reset
     reset_remote();
 
-    printf("Starting up server...\n");
+    Serial.println(F("Starting up server..."));
     server.begin();
 
-    printf("Setup complete.\n");
+    Serial.println(F("Setup complete."));
 }
 
 void loop() {
