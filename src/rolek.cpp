@@ -2,6 +2,7 @@
 #include <LittleFS.h>
 
 #include <utils/led.h>
+#include <utils/reset.h>
 #include <utils/wifi_control.h>
 
 #define PIN_UP D1
@@ -241,7 +242,9 @@ void setup() {
     init_output(PIN_LT);
     init_output(PIN_RT);
 
-    wifi_control.init(WiFiInitMode::automatic, HOSTNAME, PASSWORD);
+    if (!wifi_control.init(WiFiInitMode::automatic, HOSTNAME, PASSWORD, 5 * 60)) {
+        reset();
+    }
 
     Serial.println(F("Initializing file system..."));
     LittleFS.begin();
