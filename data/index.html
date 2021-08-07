@@ -58,7 +58,7 @@
                         new_updown = updown.clone();
 
                         new_updown.find("#btn-up").click(function(){send_request(val, "up");});
-                        new_updown.find("#btn-st").text(key);
+                        new_updown.find("#btn-st").text(key).click(function(){send_request(val, "stop");});
                         new_updown.find("#btn-dn").click(function(){send_request(val, "down");});
 
                         $("#smallbuttons").append(new_updown);

@@ -9,6 +9,7 @@
 #define PIN_DN D0
 #define PIN_LT D6
 #define PIN_RT D5
+#define PIN_ST D7
 #define PIN_EN D2
 #define PIN_LED D4
 
@@ -25,8 +26,8 @@ ESP8266WebServer server{80};
 
 unsigned int current_index{DEFAULT_INDEX};
 
-enum direction_t { DIRECTION_DOWN, DIRECTION_UP };
-enum button_t { BUTTON_DOWN, BUTTON_UP, BUTTON_LEFT, BUTTON_RIGHT };
+enum command_t { COMMAND_DOWN, COMMAND_UP, COMMAND_STOP };
+enum button_t { BUTTON_DOWN, BUTTON_UP, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_STOP };
 
 void reset_remote() {
     Serial.println(F("Resetting remote..."));
@@ -57,6 +58,10 @@ void push(button_t button, unsigned long time) {
         case BUTTON_RIGHT:
             desc = "RIGHT";
             pin = PIN_RT;
+            break;
+        case BUTTON_STOP:
+            desc = "STOP";
+            pin = PIN_ST;
             break;
         default:
             return;
@@ -107,17 +112,30 @@ void init_output(unsigned int pin)
     digitalWrite(pin, LOW);
 }
 
-void process_command(direction_t direction, unsigned int mask)
+void process_command(command_t command, unsigned int mask)
 {
-    printf("Iterating through mask 0x%02x %s selected blinds...\n",
-           mask, direction == DIRECTION_UP ? "opening" : "closing");
+    printf("Iterating through mask 0x%02x...\n", mask);
     for(unsigned int idx = 0; mask && (idx < 8); ++idx)
     {
         unsigned int current = 1 << idx;
         if (mask & current)
         {
             navigate_to(idx);
-            push(direction == DIRECTION_UP ? BUTTON_UP : BUTTON_DOWN, 250);
+            switch (command) {
+                case COMMAND_UP:
+                    printf("  Opening %u\n", idx);
+                    push(BUTTON_UP, 250);
+                    break;
+                case COMMAND_DOWN:
+                    printf("  Closing %u\n", idx);
+                    push(BUTTON_DOWN, 250);
+                    break;
+                case COMMAND_STOP:
+                default:
+                    printf("  Stopping %u\n", idx);
+                    push(BUTTON_STOP, 250);
+                    break;
+            }
             mask ^= current;
         }
     }
@@ -155,7 +173,7 @@ int mask_from_comma_separated_list(const String & str) {
 
 void setup_endpoints()
 {
-    auto handler = [](direction_t direction) {
+    auto handler = [](command_t command) {
         unsigned int mask = 0;
         unsigned int count = 1;
 
@@ -185,15 +203,16 @@ void setup_endpoints()
         }
 
         do {
-            process_command(direction, mask);
+            process_command(command, mask);
             delay(500);
         } while (--count > 0);
 
         server.send(200, F("text/plain"), F("OK"));
     };
 
-    server.on("/up", [handler]{ handler(DIRECTION_UP); });
-    server.on("/down", [handler]{ handler(DIRECTION_DOWN); });
+    server.on("/up", [handler]{ handler(COMMAND_UP); });
+    server.on("/down", [handler]{ handler(COMMAND_DOWN); });
+    server.on("/stop", [handler]{ handler(COMMAND_STOP); });
 
     server.on("/reset", []{
             reset_remote();
@@ -241,6 +260,7 @@ void setup() {
     init_output(PIN_DN);
     init_output(PIN_LT);
     init_output(PIN_RT);
+    init_output(PIN_ST);
 
     if (!wifi_control.init(WiFiInitMode::automatic, HOSTNAME, PASSWORD, 5 * 60)) {
         reset();
