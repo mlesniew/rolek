@@ -4,7 +4,7 @@
       type="button"
       class="btn btn-sm btn-warning w-100"
       @click="reset_remote()"
-      :disabled="resetting"
+      :disabled="resetting || disabled"
     >
       <span
         v-if="resetting"
@@ -21,6 +21,10 @@
 import axios from "axios";
 
 export default {
+  props: {
+    disabled: Boolean,
+  },
+
   data() {
     return {
       resetting: false,
@@ -32,6 +36,7 @@ export default {
   methods: {
     reset_remote() {
       this.resetting = true;
+      this.$emit("request_start");
       axios
         .post("/reset")
         .then(() => {
