@@ -231,8 +231,6 @@ void setup_endpoints()
             server.send(200, F("text/plain"), uptime());
             });
 
-    server.serveStatic("/", LittleFS, "/index.html");
-
     server.serveStatic("/", LittleFS, "/");
 }
 
