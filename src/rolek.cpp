@@ -1,8 +1,7 @@
 #include <ESP8266WebServer.h>
 #include <LittleFS.h>
 
-#include <utils/led.h>
-#include <utils/reset.h>
+#include <utils/io.h>
 #include <utils/wifi_control.h>
 
 #define PIN_UP D1
@@ -20,7 +19,7 @@
 #define PASSWORD "password"
 #endif
 
-BlinkingLed wifi_led(PIN_LED, 0, 91, true);
+PinOutput<D4, true> wifi_led;
 WiFiControl wifi_control(wifi_led);
 ESP8266WebServer server{80};
 
@@ -261,7 +260,7 @@ void setup() {
     init_output(PIN_ST);
 
     if (!wifi_control.init(WiFiInitMode::automatic, HOSTNAME, PASSWORD, 5 * 60)) {
-        reset();
+        ESP.restart();
     }
 
     Serial.println(F("Initializing file system..."));
