@@ -98,20 +98,6 @@ void push(button_t button, unsigned long time) {
     delay(time);
 }
 
-const char * uptime()
-{
-    static char buf[100];
-    const auto now = millis();
-
-    const unsigned long seconds = (now / 1000) % 60;
-    const unsigned long minutes = (now / (60 * 1000)) % 60;
-    const unsigned long hours = (now / (60 * 60 * 1000)) % 24;
-    const unsigned long days = now / (24 * 60 * 60 * 1000);
-
-    snprintf(buf, 100, "%lu day%s, %lu:%02lu:%02lu", days, days == 1 ? "" : "s", hours, minutes, seconds);
-    return buf;
-}
-
 void init_output(unsigned int pin)
 {
     pinMode(pin, OUTPUT);
@@ -202,18 +188,6 @@ void setup_endpoints()
     server.on("/reset", []{
             reset_remote();
             server.send(200, F("text/plain"), F("OK"));
-            });
-
-    server.on("/alive", []{
-            server.send(200, F("text/plain"), F(HOSTNAME " is alive"));
-            });
-
-    server.on("/version", []{
-            server.send(200, F("text/plain"), F(__DATE__ " " __TIME__));
-            });
-
-    server.on("/uptime", []{
-            server.send(200, F("text/plain"), uptime());
             });
 
     server.serveStatic("/", LittleFS, "/");
