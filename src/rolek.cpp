@@ -3,6 +3,7 @@
 #include <uri/UriRegex.h>
 #include <ESP8266WebServer.h>
 #include <LittleFS.h>
+#include <ArduinoJson.h>
 
 #include <utils/io.h>
 #include <utils/wifi_control.h>
@@ -51,6 +52,7 @@ unsigned int current_index{DEFAULT_INDEX};
 
 enum command_t { COMMAND_DOWN, COMMAND_UP, COMMAND_STOP };
 enum button_t { BUTTON_DOWN, BUTTON_UP, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_STOP };
+
 
 void reset_remote() {
     Serial.println(F("Resetting remote..."));
@@ -164,8 +166,7 @@ bool process(const std::string & name, const command_t command) {
     return false;
 }
 
-void setup_endpoints()
-{
+void setup_endpoints() {
     server.on(UriRegex("/blinds/([^/]+)/(up|down|stop)"), [] {
         const std::string name = uri_unquote(server.pathArg(0).c_str());
 
@@ -183,6 +184,23 @@ void setup_endpoints()
 
         const bool success = process(name, command);
         server.send(success ? 200 : 404);
+    });
+
+    server.on("/blinds", [] {
+        StaticJsonDocument<1024> json;
+        auto blinds_array = json["blinds"].to<JsonArray>();
+        for (const auto & kv : blinds) {
+            blinds_array.add(kv.first);
+        }
+
+        auto groups_array = json["groups"].to<JsonArray>();
+        for (const auto & kv : groups) {
+            groups_array.add(kv.first);
+        }
+
+        String output;
+        serializeJson(json, output);
+        server.send(200, F("application/json"), output);
     });
 
     server.on("/reset", []{
