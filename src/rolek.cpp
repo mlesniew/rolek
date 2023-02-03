@@ -1,8 +1,13 @@
+#include <map>
+
+#include <uri/UriRegex.h>
 #include <ESP8266WebServer.h>
 #include <LittleFS.h>
 
 #include <utils/io.h>
 #include <utils/wifi_control.h>
+
+#include "utils.h"
 
 #define PIN_UP D1
 #define PIN_DN D0
@@ -17,6 +22,25 @@
 #define HOSTNAME "Rolek"
 #ifndef PASSWORD
 #define PASSWORD "password"
+#endif
+
+#if __has_include("customize.h")
+#include "customize.h"
+#else
+#warning "Using default config, create customize.h to customize."
+
+const std::map<std::string, unsigned int> blinds = {
+    {"Living room", 1},
+    {"Kitchen", 2},
+    {"Bedroom", 3},
+    {"Attic", 4},
+};
+
+const std::map<std::string, std::vector<std::string>> groups = {
+    {"Downstairs", {"Living room", "Kitchen"}},
+    {"Upstairs", {"Bedroom", "Attic"}},
+};
+
 #endif
 
 PinOutput<D4, true> wifi_led;
@@ -88,6 +112,12 @@ const char * uptime()
     return buf;
 }
 
+void init_output(unsigned int pin)
+{
+    pinMode(pin, OUTPUT);
+    digitalWrite(pin, LOW);
+}
+
 void navigate_to(unsigned int index)
 {
     printf("Going from index %u to index %u\n", current_index, index);
@@ -105,113 +135,69 @@ void navigate_to(unsigned int index)
     }
 }
 
-void init_output(unsigned int pin)
-{
-    pinMode(pin, OUTPUT);
-    digitalWrite(pin, LOW);
-}
-
-void process_command(command_t command, unsigned int mask)
-{
-    printf("Iterating through mask 0x%02x...\n", mask);
-    for(unsigned int idx = 0; mask && (idx < 8); ++idx)
-    {
-        unsigned int current = 1 << idx;
-        if (mask & current)
-        {
-            navigate_to(idx);
-            switch (command) {
-                case COMMAND_UP:
-                    printf("  Opening %u\n", idx);
-                    push(BUTTON_UP, 250);
-                    break;
-                case COMMAND_DOWN:
-                    printf("  Closing %u\n", idx);
-                    push(BUTTON_DOWN, 250);
-                    break;
-                case COMMAND_STOP:
-                default:
-                    printf("  Stopping %u\n", idx);
-                    push(BUTTON_STOP, 250);
-                    break;
-            }
-            mask ^= current;
-        }
-    }
-}
-
-int mask_from_comma_separated_list(const String & str) {
-    int ret = 0;
-    int start_idx = 0;
-
-    printf("Decoding mask %s\n", str.c_str());
-
-    while (1) {
-        int comma_idx = str.indexOf(',', start_idx);
-
-        const long value = (comma_idx < 0 ? str.substring(start_idx) : str.substring(start_idx, comma_idx)).toInt();
-        if ((value < 1) || (value > 8)) {
-            // error, invalid value or error converting
-            printf("Error at char %i.\n", start_idx);
-            return 0;
-        }
-
-        printf(" * %li\n", value);
-        ret |= 1 << (value - 1);
-
-        if (comma_idx < 0)
+void execute_command(const command_t command) {
+    switch (command) {
+        case COMMAND_UP:
+            printf("  Opening %u\n", current_index);
+            push(BUTTON_UP, 250);
             break;
-
-        // next time start searching after the comma
-        start_idx = comma_idx + 1;
+        case COMMAND_DOWN:
+            printf("  Closing %u\n", current_index);
+            push(BUTTON_DOWN, 250);
+            break;
+        case COMMAND_STOP:
+        default:
+            printf("  Stopping %u\n", current_index);
+            push(BUTTON_STOP, 250);
+            break;
     }
-    printf("Parsing complete, mask: %i\n", ret);
+}
 
-    return ret;
+bool process(const std::string & name, const command_t command) {
+    {
+        const auto it = blinds.find(name);
+        if (it != blinds.end()) {
+            const unsigned int position = it->second;
+            navigate_to(position);
+            execute_command(command);
+            return true;
+        }
+    }
+
+    {
+        const auto it = groups.find(name);
+        if (it != groups.end()) {
+            const auto & group = it->second;
+            for (const auto & element : group) {
+                process(element, command);
+            }
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void setup_endpoints()
 {
-    auto handler = [](command_t command) {
-        unsigned int mask = 0;
-        unsigned int count = 1;
+    server.on(UriRegex("/blinds/([^/]+)/(up|down|stop)"), [] {
+        const std::string name = uri_unquote(server.pathArg(0).c_str());
 
-        /* extract blinds parameter */
-        if (!server.hasArg("blinds")) {
-            // no argument, use all blinds
-            mask = 1;
-        } else {
-            mask = mask_from_comma_separated_list(server.arg("blinds")) << 1;
-            if (mask <= 0)
-            {
-                server.send(400, F("text/plain"), F("Invalid blinds argument"));
-                return;
-            }
+        command_t command = COMMAND_STOP;
+        switch (server.pathArg(1).c_str()[0]) {
+            case 'u':
+                command = COMMAND_UP;
+                break;
+            case 'd':
+                command = COMMAND_DOWN;
+                break;
+            default:
+                command = COMMAND_STOP;
         }
 
-        /* extract count parameter */
-        if (!server.hasArg("count"))
-            count = 1;
-        else {
-            count = server.arg("count").toInt();
-            if ((count < 1) || (count > 5))
-            {
-                server.send(400, F("text/plain"), F("Invalid count argument"));
-                return;
-            }
-        }
-
-        do {
-            process_command(command, mask);
-            delay(500);
-        } while (--count > 0);
-
-        server.send(200, F("text/plain"), F("OK"));
-    };
-
-    server.on("/up", [handler]{ handler(COMMAND_UP); });
-    server.on("/down", [handler]{ handler(COMMAND_DOWN); });
-    server.on("/stop", [handler]{ handler(COMMAND_STOP); });
+        const bool success = process(name, command);
+        server.send(success ? 200 : 404);
+    });
 
     server.on("/reset", []{
             reset_remote();

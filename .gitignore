@@ -2,3 +2,4 @@
 .pioenvs/
 .piolibdeps/
 .pio/
+src/customize.h
