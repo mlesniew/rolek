@@ -9,4 +9,5 @@ module.exports = defineConfig({
   css: {
     extract: false,
   },
+  productionSourceMap: false,
 });
