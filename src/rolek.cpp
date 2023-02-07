@@ -50,7 +50,7 @@ ESP8266WebServer server{80};
 
 unsigned int current_index{DEFAULT_INDEX};
 
-enum command_t { COMMAND_DOWN, COMMAND_UP, COMMAND_STOP };
+enum command_t { COMMAND_DOWN = 'd', COMMAND_UP = 'u', COMMAND_STOP = 's' };
 enum button_t { BUTTON_DOWN, BUTTON_UP, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_STOP };
 
 
@@ -142,6 +142,12 @@ void execute_command(const command_t command) {
 }
 
 bool process(const std::string & name, const command_t command) {
+    if (name.empty()) {
+        navigate_to(0);
+        execute_command(command);
+        return true;
+    }
+
     {
         const auto it = blinds.find(name);
         if (it != blinds.end()) {
@@ -167,22 +173,23 @@ bool process(const std::string & name, const command_t command) {
 }
 
 void setup_endpoints() {
-    server.on(UriRegex("/blinds/([^/]+)/(up|down|stop)"), [] {
-        const std::string name = uri_unquote(server.pathArg(0).c_str());
+    server.on(UriRegex("/blinds(.*)/(up|down|stop)"), HTTP_POST, [] {
 
-        command_t command = COMMAND_STOP;
-        switch (server.pathArg(1).c_str()[0]) {
-            case 'u':
-                command = COMMAND_UP;
-                break;
-            case 'd':
-                command = COMMAND_DOWN;
-                break;
-            default:
-                command = COMMAND_STOP;
+        printf("POST %s\n", server.uri().c_str());
+
+        std::string name = uri_unquote(server.pathArg(0).c_str());
+        const char direction = server.pathArg(1).c_str()[0];
+
+        if (!name.empty()) {
+            // name must start with slash if present
+            if (name[0] != '/') {
+                server.send(404);
+                return;
+            }
+            name = name.substr(1);
         }
 
-        const bool success = process(name, command);
+        const bool success = process(name, command_t(direction));
         server.send(success ? 200 : 404);
     });
 
