@@ -1,11 +1,10 @@
 <template>
   <div class="row justify-content-left align-items-center">
-    <template v-if="config">
+    <template v-if="names">
       <RolekButton
-        v-for="(indices, name) in config"
-        :key="name"
-        :title="name"
-        :indices="indices"
+        v-for="name in names"
+        v-bind:key="name"
+        :name="name"
         :disabled="disabled"
         @request_start="$emit('request_start')"
         @request_success="$emit('request_success')"
@@ -49,7 +48,7 @@ export default {
 
   data() {
     return {
-      config: null,
+      names: null,
       error: false,
     };
   },
@@ -61,11 +60,12 @@ export default {
   methods: {
     reload() {
       this.error = false;
-      this.config = null;
+      this.names = null;
       axios
-        .get("config.json")
+        .get("blinds")
         .then((response) => {
-          this.config = response.data;
+          this.names = response.data["blinds"].concat(response.data["groups"]);
+          this.names.sort();
         })
         .catch(() => {
           this.error = true;

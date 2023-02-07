@@ -4,7 +4,7 @@
       <button
         type="button"
         :class="upDownButtonClass"
-        @click="request('up')"
+        @click="request('down')"
         :disabled="disabled"
       >
         &#9660;
@@ -15,12 +15,12 @@
         @click="request('stop')"
         :disabled="disabled"
       >
-        {{ title || "&#8728;" }}
+        {{ name || "&#8728;" }}
       </button>
       <button
         type="button"
         :class="upDownButtonClass"
-        @click="request('down')"
+        @click="request('up')"
         :disabled="disabled"
       >
         &#9650;
@@ -34,8 +34,7 @@ import axios from "axios";
 
 export default {
   props: {
-    title: String,
-    indices: Array,
+    name: String,
     large: Boolean,
     disabled: Boolean,
   },
@@ -44,10 +43,13 @@ export default {
 
   methods: {
     request(direction) {
-      let url = direction;
-      if (this.indices) {
-        url += "?blinds=" + this.indices.join(",");
+      let url = "/blinds/"
+      if (this.name) {
+        url += this.name + "/"
       }
+
+      url += direction
+
       this.$emit("request_start");
       axios
         .post(url)
@@ -66,13 +68,13 @@ export default {
   data() {
     let upDownButtonClass = "btn btn-primary";
 
-    let buttonGroupClass = "btn-group w-100";
+    let buttonGroupClass = "btn-group w-100 mb-sm-0 mb-3";
     if (this.large) {
       buttonGroupClass += " btn-group-lg";
     }
 
     let stopButtonClass = upDownButtonClass;
-    if (this.title) {
+    if (this.name) {
       stopButtonClass += " w-100";
     }
 
