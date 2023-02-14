@@ -3,7 +3,7 @@ name: PlatformIO CI
 on: [push]
 
 jobs:
-  build:
+  compile:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,3 +24,12 @@ jobs:
 
       - name: Build PlatformIO Project
         run: pio run
+
+  webui:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+      - run: npm ci && npm run build
+        working-directory: ./webui
