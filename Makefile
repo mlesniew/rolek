@@ -1,5 +1,11 @@
+all: build webui
+
 build: src/rolek.cpp
 	pio run
+
+webui:
+	cd webui && vue build
+	find data/ui/ -type f -print0 | xargs -0 -n1 gzip -9
 
 upload: src/rolek.cpp
 	pio run --target upload
@@ -13,4 +19,4 @@ server: data/config.json
 clean:
 	pio run --target clean
 
-.PHONY: build upload server clean
+.PHONY: webui build upload server clean

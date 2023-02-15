@@ -215,7 +215,7 @@ void setup_endpoints() {
             server.send(200, F("text/plain"), F("OK"));
             });
 
-    server.serveStatic("/", LittleFS, "/");
+    server.serveStatic("/", LittleFS, "/ui/");
 }
 
 void setup() {
