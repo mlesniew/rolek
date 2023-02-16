@@ -1,14 +1,12 @@
 #include <map>
 
 #include <uri/UriRegex.h>
-#include <ESP8266WebServer.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 
 #include <utils/io.h>
+#include <utils/rest.h>
 #include <utils/wifi_control.h>
-
-#include "utils.h"
 
 #define PIN_UP D1
 #define PIN_DN D0
@@ -46,7 +44,7 @@ const std::map<std::string, std::vector<std::string>> groups = {
 
 PinOutput<D4, true> wifi_led;
 WiFiControl wifi_control(wifi_led);
-ESP8266WebServer server{80};
+RestfulWebServer server{80};
 
 unsigned int current_index{DEFAULT_INDEX};
 
@@ -173,23 +171,25 @@ bool process(const std::string & name, const command_t command) {
 }
 
 void setup_endpoints() {
+    server.register_diagnostic_endpoints();
+
     server.on(UriRegex("/blinds(.*)/(up|down|stop)"), HTTP_POST, [] {
 
         printf("POST %s\n", server.uri().c_str());
 
-        std::string name = uri_unquote(server.pathArg(0).c_str());
+        String name = uri_decode(server.pathArg(0));
         const char direction = server.pathArg(1).c_str()[0];
 
-        if (!name.empty()) {
+        if (name.length()) {
             // name must start with slash if present
             if (name[0] != '/') {
                 server.send(404);
                 return;
             }
-            name = name.substr(1);
+            name = name.substring(1);
         }
 
-        const bool success = process(name, command_t(direction));
+        const bool success = process(name.c_str(), command_t(direction));
         server.send(success ? 200 : 404);
     });
 

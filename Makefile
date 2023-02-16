@@ -1,22 +1,20 @@
-all: build webui
-
 build: src/rolek.cpp
 	pio run
 
-webui:
+build-webui:
 	cd webui && vue build
-	find data/ui/ -type f -print0 | xargs -0 -n1 gzip -9
+	rm -rf data/*
+	cp -r webui/dist/* data/
+	find data/ -type f -name '*.map' -delete
+	find data -type f -not -name '*.gz' -print0 | xargs -0 -n1 gzip
 
 upload: src/rolek.cpp
 	pio run --target upload
 
-uploadfs: data/config.json
+uploadfs:
 	pio run --target uploadfs
-
-server: data/config.json
-	cd data; python3 -m http.server
 
 clean:
 	pio run --target clean
 
-.PHONY: webui build upload server clean
+.PHONY: build upload server clean
