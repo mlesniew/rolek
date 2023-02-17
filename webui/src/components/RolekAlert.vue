@@ -1,3 +1,28 @@
+<script setup>
+import { ref } from "vue";
+
+const text = ref(null);
+const timeout = ref(null);
+
+const dismiss = () => {
+  text.value = null;
+  if (timeout.value) {
+    clearTimeout(timeout.value);
+    timeout.value = null;
+  }
+};
+
+const set = (new_text) => {
+  dismiss();
+  text.value = new_text;
+  timeout.value = setTimeout(() => {
+    dismiss();
+  }, 5000);
+};
+
+defineExpose({ set });
+</script>
+
 <template>
   <div
     v-if="text"
@@ -18,30 +43,3 @@
   z-index: 9999;
 }
 </style>
-
-<script>
-export default {
-  data() {
-    return {
-      text: null,
-      timeout: null,
-    };
-  },
-  methods: {
-    dismiss() {
-      this.text = null;
-      if (this.timeout) {
-        clearTimeout(this.timeout);
-        this.timeout = null;
-      }
-    },
-    set(text) {
-      this.dismiss();
-      this.text = text;
-      this.timeout = setTimeout(() => {
-        this.dismiss();
-      }, 5000);
-    },
-  },
-};
-</script>

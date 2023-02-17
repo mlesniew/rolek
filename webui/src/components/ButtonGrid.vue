@@ -1,3 +1,36 @@
+<script setup>
+import { ref, onMounted } from "vue";
+import axios from "axios";
+import RolekButton from "./RolekButton.vue";
+
+const props = defineProps(["disabled"]);
+const emit = defineEmits([
+  "request_start",
+  "request_success",
+  "request_failure",
+  "request_end",
+]);
+
+const names = ref(null);
+const error = ref(false);
+
+const reload = () => {
+  error.value = false;
+  names.value = null;
+  axios
+    .get("blinds")
+    .then((response) => {
+      names.value = response.data["blinds"].concat(response.data["groups"]);
+      names.value.sort();
+    })
+    .catch(() => {
+      error.value = true;
+    });
+};
+
+onMounted(reload);
+</script>
+
 <template>
   <div class="row justify-content-left align-items-center">
     <template v-if="names">
@@ -5,11 +38,11 @@
         v-for="name in names"
         v-bind:key="name"
         :name="name"
-        :disabled="disabled"
-        @request_start="$emit('request_start')"
-        @request_success="$emit('request_success')"
-        @request_failure="$emit('request_failure')"
-        @request_end="$emit('request_end')"
+        :disabled="props.disabled"
+        @request_start="emit('request_start')"
+        @request_success="emit('request_success')"
+        @request_failure="emit('request_failure')"
+        @request_end="emit('request_end')"
       />
     </template>
 
@@ -30,47 +63,3 @@
     </template>
   </div>
 </template>
-
-<script>
-import axios from "axios";
-import RolekButton from "./RolekButton.vue";
-
-export default {
-  components: {
-    RolekButton,
-  },
-
-  emits: ["request_start", "request_success", "request_failure", "request_end"],
-
-  props: {
-    disabled: Boolean,
-  },
-
-  data() {
-    return {
-      names: null,
-      error: false,
-    };
-  },
-
-  mounted() {
-    this.reload();
-  },
-
-  methods: {
-    reload() {
-      this.error = false;
-      this.names = null;
-      axios
-        .get("blinds")
-        .then((response) => {
-          this.names = response.data["blinds"].concat(response.data["groups"]);
-          this.names.sort();
-        })
-        .catch(() => {
-          this.error = true;
-        });
-    },
-  },
-};
-</script>
