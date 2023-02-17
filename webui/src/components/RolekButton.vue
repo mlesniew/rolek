@@ -43,12 +43,12 @@ export default {
 
   methods: {
     request(direction) {
-      let url = "/blinds/"
+      let url = "/blinds/";
       if (this.name) {
-        url += this.name + "/"
+        url += this.name + "/";
       }
 
-      url += direction
+      url += direction;
 
       this.$emit("request_start");
       axios
