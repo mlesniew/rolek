@@ -44,7 +44,7 @@ const std::map<std::string, std::vector<std::string>> groups = {
 
 PinOutput<D4, true> wifi_led;
 WiFiControl wifi_control(wifi_led);
-RestfulWebServer server{80};
+RestfulWebServer server;
 
 unsigned int current_index{DEFAULT_INDEX};
 
@@ -171,14 +171,12 @@ bool process(const std::string & name, const command_t command) {
 }
 
 void setup_endpoints() {
-    server.register_diagnostic_endpoints();
-
     server.on(UriRegex("/blinds(.*)/(up|down|stop)"), HTTP_POST, [] {
 
         printf("POST %s\n", server.uri().c_str());
 
-        String name = uri_decode(server.pathArg(0));
-        const char direction = server.pathArg(1).c_str()[0];
+        String name = server.decodedPathArg(0);
+        const char direction = server.decodedPathArg(1).c_str()[0];
 
         if (name.length()) {
             // name must start with slash if present
@@ -205,9 +203,7 @@ void setup_endpoints() {
             groups_array.add(kv.first);
         }
 
-        String output;
-        serializeJson(json, output);
-        server.send(200, F("application/json"), output);
+        server.sendJson(json);
     });
 
     server.on("/reset", []{
