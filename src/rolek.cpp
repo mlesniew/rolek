@@ -1,12 +1,12 @@
 #include <map>
 
+#include <ESP8266WebServer.h>
 #include <uri/UriRegex.h>
 #include <LittleFS.h>
-#include <ArduinoJson.h>
 
-#include <utils/io.h>
-#include <utils/rest.h>
-#include <utils/wifi_control.h>
+#include <WiFiManager.h>
+#include <ArduinoJson.h>
+#include <PicoUtils.h>
 
 #define PIN_UP D1
 #define PIN_DN D0
@@ -42,9 +42,9 @@ const std::map<std::string, std::vector<std::string>> groups = {
 
 #endif
 
-PinOutput<D4, true> wifi_led;
-WiFiControl wifi_control(wifi_led);
-RestfulWebServer server;
+PicoUtils::PinOutput<D4, true> wifi_led;
+PicoUtils::WiFiControl<WiFiManager> wifi_control(wifi_led);
+PicoUtils::RestfulServer<ESP8266WebServer> server;
 
 unsigned int current_index{DEFAULT_INDEX};
 
@@ -110,46 +110,46 @@ void navigate_to(unsigned int index)
 
     while (current_index != index)
     {
-        if (current_index < index)
-        {
-            push(BUTTON_RIGHT, 100);
-            current_index++;
-        } else {
-            push(BUTTON_LEFT, 100);
-            current_index--;
-        }
+    if (current_index < index)
+    {
+        push(BUTTON_RIGHT, 100);
+        current_index++;
+    } else {
+        push(BUTTON_LEFT, 100);
+        current_index--;
     }
+}
 }
 
 void execute_command(const command_t command) {
-    switch (command) {
-        case COMMAND_UP:
-            printf("  Opening %u\n", current_index);
-            push(BUTTON_UP, 250);
-            break;
-        case COMMAND_DOWN:
-            printf("  Closing %u\n", current_index);
-            push(BUTTON_DOWN, 250);
-            break;
-        case COMMAND_STOP:
-        default:
-            printf("  Stopping %u\n", current_index);
-            push(BUTTON_STOP, 250);
-            break;
-    }
+switch (command) {
+    case COMMAND_UP:
+        printf("  Opening %u\n", current_index);
+        push(BUTTON_UP, 250);
+        break;
+    case COMMAND_DOWN:
+        printf("  Closing %u\n", current_index);
+        push(BUTTON_DOWN, 250);
+        break;
+    case COMMAND_STOP:
+    default:
+        printf("  Stopping %u\n", current_index);
+        push(BUTTON_STOP, 250);
+        break;
+}
 }
 
 bool process(const std::string & name, const command_t command) {
-    if (name.empty()) {
-        navigate_to(0);
-        execute_command(command);
-        return true;
-    }
+if (name.empty()) {
+    navigate_to(0);
+    execute_command(command);
+    return true;
+}
 
-    {
-        const auto it = blinds.find(name);
-        if (it != blinds.end()) {
-            const unsigned int position = it->second;
+{
+    const auto it = blinds.find(name);
+    if (it != blinds.end()) {
+        const unsigned int position = it->second;
             navigate_to(position);
             execute_command(command);
             return true;
@@ -240,9 +240,7 @@ void setup() {
     init_output(PIN_RT);
     init_output(PIN_ST);
 
-    if (!wifi_control.init(WiFiInitMode::automatic, HOSTNAME, PASSWORD, 5 * 60)) {
-        ESP.restart();
-    }
+    wifi_control.init(HOSTNAME, PASSWORD, 5 * 60);
 
     Serial.println(F("Initializing file system..."));
     LittleFS.begin();
