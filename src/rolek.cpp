@@ -99,58 +99,54 @@ void push(button_t button, unsigned long time) {
     delay(time);
 }
 
-void init_output(unsigned int pin)
-{
+void init_output(unsigned int pin) {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, LOW);
 }
 
-void navigate_to(unsigned int index)
-{
+void navigate_to(unsigned int index) {
     printf("Going from index %u to index %u\n", current_index, index);
 
-    while (current_index != index)
-    {
-    if (current_index < index)
-    {
-        push(BUTTON_RIGHT, 100);
-        current_index++;
-    } else {
-        push(BUTTON_LEFT, 100);
-        current_index--;
+    while (current_index != index) {
+        if (current_index < index) {
+            push(BUTTON_RIGHT, 100);
+            current_index++;
+        } else {
+            push(BUTTON_LEFT, 100);
+            current_index--;
+        }
     }
-}
 }
 
 void execute_command(const command_t command) {
-switch (command) {
-    case COMMAND_UP:
-        printf("  Opening %u\n", current_index);
-        push(BUTTON_UP, 250);
-        break;
-    case COMMAND_DOWN:
-        printf("  Closing %u\n", current_index);
-        push(BUTTON_DOWN, 250);
-        break;
-    case COMMAND_STOP:
-    default:
-        printf("  Stopping %u\n", current_index);
-        push(BUTTON_STOP, 250);
-        break;
-}
+    switch (command) {
+        case COMMAND_UP:
+            printf("  Opening %u\n", current_index);
+            push(BUTTON_UP, 250);
+            break;
+        case COMMAND_DOWN:
+            printf("  Closing %u\n", current_index);
+            push(BUTTON_DOWN, 250);
+            break;
+        case COMMAND_STOP:
+        default:
+            printf("  Stopping %u\n", current_index);
+            push(BUTTON_STOP, 250);
+            break;
+    }
 }
 
 bool process(const std::string & name, const command_t command) {
-if (name.empty()) {
-    navigate_to(0);
-    execute_command(command);
-    return true;
-}
+    if (name.empty()) {
+        navigate_to(0);
+        execute_command(command);
+        return true;
+    }
 
-{
-    const auto it = blinds.find(name);
-    if (it != blinds.end()) {
-        const unsigned int position = it->second;
+    {
+        const auto it = blinds.find(name);
+        if (it != blinds.end()) {
+            const unsigned int position = it->second;
             navigate_to(position);
             execute_command(command);
             return true;
@@ -207,10 +203,10 @@ void setup_endpoints() {
         server.sendJson(json);
     });
 
-    server.on("/reset", []{
-            reset_remote();
-            server.send(200, F("text/plain"), F("OK"));
-            });
+    server.on("/reset", [] {
+        reset_remote();
+        server.send(200, F("text/plain"), F("OK"));
+    });
 
     server.serveStatic("/", LittleFS, "/ui/");
 }
@@ -291,19 +287,19 @@ void setup() {
     Serial.begin(115200);
 
     Serial.print(F(
-        "\n\n"
-        "8888888b.          888          888     \n"
-        "888   Y88b         888          888     \n"
-        "888    888         888          888     \n"
-        "888   d88P .d88b.  888  .d88b.  888  888\n"
-        "8888888P^ d88^^88b 888 d8P  Y8b 888 .88P\n"
-        "888 T88b  888  888 888 88888888 888888K \n"
-        "888  T88b Y88..88P 888 Y8b.     888 ^88b\n"
-        "888   T88b ^Y88P^  888  ^Y8888  888  888\n"
-        "\n"
-        "Rolek " __DATE__ " " __TIME__ "\n"
-        "https://github.com/mlesniew/rolek\n"
-        "\n"));
+                     "\n\n"
+                     "8888888b.          888          888     \n"
+                     "888   Y88b         888          888     \n"
+                     "888    888         888          888     \n"
+                     "888   d88P .d88b.  888  .d88b.  888  888\n"
+                     "8888888P^ d88^^88b 888 d8P  Y8b 888 .88P\n"
+                     "888 T88b  888  888 888 88888888 888888K \n"
+                     "888  T88b Y88..88P 888 Y8b.     888 ^88b\n"
+                     "888   T88b ^Y88P^  888  ^Y8888  888  888\n"
+                     "\n"
+                     "Rolek " __DATE__ " " __TIME__ "\n"
+                     "https://github.com/mlesniew/rolek\n"
+                     "\n"));
 
     Serial.println(F("Initializing outputs..."));
     init_output(PIN_EN);
@@ -342,10 +338,60 @@ void setup() {
     server.begin();
 
     Serial.println(F("Starting up MQTT..."));
+    mqtt.subscribe("rolek/" + hostname + "/+", [](const char * topic, const char * payload) {
+        const String name = mqtt.get_topic_element(topic, 2);
+
+        if (strcmp(payload, "STOP") == 0) {
+            process(name.c_str(), COMMAND_STOP);
+        } else if (strcmp(payload, "OPEN") == 0) {
+            process(name.c_str(), COMMAND_UP);
+        } else if (strcmp(payload, "CLOSE") == 0) {
+            process(name.c_str(), COMMAND_DOWN);
+        }
+
+    });
+
     mqtt.begin();
 
     Serial.println(F("Setup complete."));
 }
+
+PicoUtils::PeriodicRun hass_autodiscovery(300, 30, [] {
+    if (hass_autodiscovery_topic.length() == 0) {
+        return;
+    }
+
+    Serial.println("Home Assistant autodiscovery announcement...");
+
+    const String mac = "rolek-" + String(ESP.getChipId(), HEX);
+
+    for (const auto & kv : blinds) {
+        const auto device_id = mac + "-" + String(kv.second);
+        const auto unique_id = device_id;
+        const auto name = kv.first;
+        const String topic = hass_autodiscovery_topic + "/cover/" + hostname + "/" + unique_id + "/config";
+
+        StaticJsonDocument<1024> json;
+        json["unique_id"] = unique_id;
+        json["command_topic"] = "rolek/" + hostname + "/" + kv.first.c_str();
+        json["device_class"] = "shutter";  // TODO: are these shutters, shades or blinds?
+        json["name"] = "Roleta";
+
+        auto device = json["device"];
+        device["name"] = "Roleta " + name;
+        device["suggested_area"] = name.substr(0, name.find(' '));
+        device["identifiers"][0] = device_id;
+        device["via_device"] = mac;
+
+        serializeJsonPretty(json, Serial);
+
+        auto publish = mqtt.begin_publish(topic, measureJson(json));
+        serializeJson(json, publish);
+        publish.send();
+    }
+
+    Serial.println("Home Assistant autodiscovery announcement complete.");
+});
 
 void update_status_led() {
     if (WiFi.status() == WL_CONNECTED) {
@@ -365,4 +411,5 @@ void loop() {
     server.handleClient();
     mqtt.loop();
     MDNS.update();
+    hass_autodiscovery.tick();
 }
