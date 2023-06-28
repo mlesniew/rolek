@@ -351,6 +351,12 @@ void setup() {
 
     });
 
+    mqtt.subscribe("rolek/" + hostname, [](const char * payload) {
+        if (strcmp(payload, "reset") == 0) {
+            reset_remote();
+        }
+    });
+
     mqtt.begin();
 
     Serial.println(F("Setup complete."));
@@ -369,7 +375,7 @@ PicoUtils::PeriodicRun hass_autodiscovery(300, 30, [] {
         const auto device_id = mac + "-" + String(kv.second);
         const auto unique_id = device_id;
         const auto name = kv.first;
-        const String topic = hass_autodiscovery_topic + "/cover/" + hostname + "/" + unique_id + "/config";
+        const String topic = hass_autodiscovery_topic + "/cover/" + unique_id + "/config";
 
         StaticJsonDocument<1024> json;
         json["unique_id"] = unique_id;
@@ -382,6 +388,29 @@ PicoUtils::PeriodicRun hass_autodiscovery(300, 30, [] {
         device["suggested_area"] = name.substr(0, name.find(' '));
         device["identifiers"][0] = device_id;
         device["via_device"] = mac;
+
+        serializeJsonPretty(json, Serial);
+
+        auto publish = mqtt.begin_publish(topic, measureJson(json));
+        serializeJson(json, publish);
+        publish.send();
+    }
+
+    {
+        const String topic = hass_autodiscovery_topic + "/button/" + mac + "/config";
+
+        StaticJsonDocument<1024> json;
+        json["unique_id"] = mac;
+        json["command_topic"] = "rolek/" + hostname;
+        json["name"] = "Reset";
+        json["payload_press"] = "reset";
+
+        auto device = json["device"];
+        device["name"] = "Rolek";
+        device["manufacturer"] = "mlesniew";
+        device["sw_version"] = __DATE__ " " __TIME__;
+        device["configuration_url"] = "http://" + WiFi.localIP().toString();
+        device["identifiers"][0] = mac;
 
         serializeJsonPretty(json, Serial);
 
