@@ -7,6 +7,7 @@
 #include <WiFiManager.h>
 #include <ArduinoJson.h>
 #include <PicoUtils.h>
+#include <PicoMQTT.h>
 
 #define PIN_UP D1
 #define PIN_DN D0
@@ -18,10 +19,9 @@
 
 #define DEFAULT_INDEX 1
 
-#define HOSTNAME "Rolek"
-#ifndef PASSWORD
-#define PASSWORD "password"
-#endif
+String hostname;
+String hass_autodiscovery_topic;
+PicoMQTT::Client mqtt;
 
 #if __has_include("customize.h")
 #include "customize.h"
@@ -42,8 +42,9 @@ const std::map<std::string, std::vector<std::string>> groups = {
 
 #endif
 
+PicoUtils::PinInput<0, true> flash_button;
 PicoUtils::PinOutput<D4, true> wifi_led;
-PicoUtils::WiFiControl<WiFiManager> wifi_control(wifi_led);
+PicoUtils::Blink led_blinker(wifi_led, 0, 91);
 PicoUtils::RestfulServer<ESP8266WebServer> server;
 
 unsigned int current_index{DEFAULT_INDEX};
@@ -214,7 +215,79 @@ void setup_endpoints() {
     server.serveStatic("/", LittleFS, "/ui/");
 }
 
+namespace network_config {
+
+const char CONFIG_PATH[] PROGMEM = "/network.json";
+
+void load() {
+    PicoUtils::JsonConfigFile<StaticJsonDocument<256>> config(LittleFS, FPSTR(CONFIG_PATH));
+    hostname = config["hostname"] | "rolek";
+    hass_autodiscovery_topic = config["hass_autodiscovery_topic"] | "homeassistant";
+    mqtt.host = config["mqtt"]["host"] | "";
+    mqtt.port = config["mqtt"]["port"] | 1883;
+    mqtt.username = config["mqtt"]["username"] | "";
+    mqtt.password = config["mqtt"]["password"] | "";
+}
+
+DynamicJsonDocument get() {
+    DynamicJsonDocument config(1024);
+    config["hostname"] = hostname;
+    config["hass_autodiscovery_topic"] = hass_autodiscovery_topic;
+    config["mqtt"]["host"] = mqtt.host;
+    config["mqtt"]["port"] = mqtt.port;
+    config["mqtt"]["username"] = mqtt.username;
+    config["mqtt"]["password"] = mqtt.password;
+    return config;
+}
+
+void save() {
+    auto file = LittleFS.open(FPSTR(CONFIG_PATH), "w");
+    if (file) {
+        serializeJson(get(), file);
+        file.close();
+    }
+}
+
+}
+
+void config_mode() {
+    led_blinker.set_pattern(0b100100100 << 9);
+
+    WiFiManagerParameter param_hostname("hostname", "Hostname", hostname.c_str(), 64);
+    WiFiManagerParameter param_mqtt_server("mqtt_server", "MQTT Server", mqtt.host.c_str(), 64);
+    WiFiManagerParameter param_mqtt_port("mqtt_port", "MQTT Port", String(mqtt.port).c_str(), 64);
+    WiFiManagerParameter param_mqtt_username("mqtt_user", "MQTT Username", mqtt.username.c_str(), 64);
+    WiFiManagerParameter param_mqtt_password("mqtt_pass", "MQTT Password", mqtt.password.c_str(), 64);
+    WiFiManagerParameter param_hass_topic("hass_autodiscovery_topic", "Home Assistant autodiscovery topic",
+                                          hass_autodiscovery_topic.c_str(), 64);
+
+    WiFiManager wifi_manager;
+
+    wifi_manager.addParameter(&param_hostname);
+    wifi_manager.addParameter(&param_mqtt_server);
+    wifi_manager.addParameter(&param_mqtt_port);
+    wifi_manager.addParameter(&param_mqtt_username);
+    wifi_manager.addParameter(&param_mqtt_password);
+    wifi_manager.addParameter(&param_hass_topic);
+
+    wifi_manager.startConfigPortal("Rolek");
+
+    hostname = param_hostname.getValue();
+    mqtt.host = param_mqtt_server.getValue();
+    mqtt.port = String(param_mqtt_port.getValue()).toInt();
+    mqtt.username = param_mqtt_username.getValue();
+    mqtt.password = param_mqtt_password.getValue();
+    hass_autodiscovery_topic = param_hass_topic.getValue();
+
+    network_config::save();
+}
+
 void setup() {
+    wifi_led.init();
+    led_blinker.set_pattern(0b10);
+    PicoUtils::BackgroundBlinker bb(led_blinker);
+    flash_button.init();
+
     Serial.begin(115200);
 
     Serial.print(F(
@@ -228,9 +301,9 @@ void setup() {
         "888  T88b Y88..88P 888 Y8b.     888 ^88b\n"
         "888   T88b ^Y88P^  888  ^Y8888  888  888\n"
         "\n"
+        "Rolek " __DATE__ " " __TIME__ "\n"
         "https://github.com/mlesniew/rolek\n"
-        "\n"
-        "Built on: " __DATE__ " " __TIME__ "\n\n"));
+        "\n"));
 
     Serial.println(F("Initializing outputs..."));
     init_output(PIN_EN);
@@ -240,10 +313,24 @@ void setup() {
     init_output(PIN_RT);
     init_output(PIN_ST);
 
-    wifi_control.init(HOSTNAME, PASSWORD, 5 * 60);
-
     Serial.println(F("Initializing file system..."));
     LittleFS.begin();
+
+    Serial.println(F("Load configuration..."));
+    network_config::load();
+    serializeJsonPretty(network_config::get(), Serial);
+
+    Serial.println("\nPress and hold button now to enter WiFi setup.");
+    delay(3000);
+    if (flash_button) {
+        config_mode();
+    }
+
+    WiFi.hostname(hostname);
+    WiFi.setAutoReconnect(true);
+    WiFi.softAPdisconnect(true);
+    WiFi.begin();
+    MDNS.begin(hostname);
 
     Serial.println(F("Setting up endpoints..."));
     setup_endpoints();
@@ -254,10 +341,28 @@ void setup() {
     Serial.println(F("Starting up server..."));
     server.begin();
 
+    Serial.println(F("Starting up MQTT..."));
+    mqtt.begin();
+
     Serial.println(F("Setup complete."));
 }
 
+void update_status_led() {
+    if (WiFi.status() == WL_CONNECTED) {
+        if (mqtt.connected()) {
+            led_blinker.set_pattern(uint64_t(0b101) << 60);
+        } else {
+            led_blinker.set_pattern(uint64_t(0b1) << 60);
+        }
+    } else {
+        led_blinker.set_pattern(0b1100);
+    }
+    led_blinker.tick();
+};
+
 void loop() {
-    wifi_control.tick();
+    update_status_led();
     server.handleClient();
+    mqtt.loop();
+    MDNS.update();
 }
