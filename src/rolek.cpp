@@ -19,6 +19,7 @@
 
 #define DEFAULT_INDEX 1
 
+const String board_id(ESP.getChipId(), HEX);
 String hostname;
 String hass_autodiscovery_topic;
 PicoMQTT::Client mqtt;
@@ -338,7 +339,7 @@ void setup() {
     server.begin();
 
     Serial.println(F("Starting up MQTT..."));
-    mqtt.subscribe("rolek/" + hostname + "/+", [](const char * topic, const char * payload) {
+    mqtt.subscribe("rolek/" + board_id + "/+", [](const char * topic, const char * payload) {
         const String name = mqtt.get_topic_element(topic, 2);
 
         if (strcmp(payload, "STOP") == 0) {
@@ -351,7 +352,7 @@ void setup() {
 
     });
 
-    mqtt.subscribe("rolek/" + hostname, [](const char * payload) {
+    mqtt.subscribe("rolek/" + board_id, [](const char * payload) {
         if (strcmp(payload, "reset") == 0) {
             reset_remote();
         }
@@ -369,25 +370,24 @@ PicoUtils::PeriodicRun hass_autodiscovery(300, 30, [] {
 
     Serial.println("Home Assistant autodiscovery announcement...");
 
-    const String mac = "rolek-" + String(ESP.getChipId(), HEX);
+    const String board_unique_id = "rolek-" + board_id;
 
     for (const auto & kv : blinds) {
-        const auto device_id = mac + "-" + String(kv.second);
-        const auto unique_id = device_id;
+        const auto unique_id = board_unique_id + "-" + String(kv.second);
         const auto name = kv.first;
         const String topic = hass_autodiscovery_topic + "/cover/" + unique_id + "/config";
 
         StaticJsonDocument<1024> json;
         json["unique_id"] = unique_id;
-        json["command_topic"] = "rolek/" + hostname + "/" + kv.first.c_str();
+        json["command_topic"] = "rolek/" + board_id + "/" + kv.first.c_str();
         json["device_class"] = "shutter";  // TODO: are these shutters, shades or blinds?
-        json["name"] = "Roleta";
+        json["name"] = "Roleta " + name;
 
         auto device = json["device"];
         device["name"] = "Roleta " + name;
         device["suggested_area"] = name.substr(0, name.find(' '));
-        device["identifiers"][0] = device_id;
-        device["via_device"] = mac;
+        device["identifiers"][0] = unique_id;
+        device["via_device"] = board_unique_id;
 
         serializeJsonPretty(json, Serial);
 
@@ -397,11 +397,12 @@ PicoUtils::PeriodicRun hass_autodiscovery(300, 30, [] {
     }
 
     {
-        const String topic = hass_autodiscovery_topic + "/button/" + mac + "/config";
+        const String unique_id = board_unique_id + "-remote-reset";
+        const String topic = hass_autodiscovery_topic + "/button/" + unique_id + "/config";
 
         StaticJsonDocument<1024> json;
-        json["unique_id"] = mac;
-        json["command_topic"] = "rolek/" + hostname;
+        json["unique_id"] = unique_id;
+        json["command_topic"] = "rolek/" + board_id;
         json["name"] = "Reset";
         json["payload_press"] = "reset";
 
@@ -410,7 +411,7 @@ PicoUtils::PeriodicRun hass_autodiscovery(300, 30, [] {
         device["manufacturer"] = "mlesniew";
         device["sw_version"] = __DATE__ " " __TIME__;
         device["configuration_url"] = "http://" + WiFi.localIP().toString();
-        device["identifiers"][0] = mac;
+        device["identifiers"][0] = board_unique_id;
 
         serializeJsonPretty(json, Serial);
 
