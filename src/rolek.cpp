@@ -9,20 +9,14 @@
 #include <PicoUtils.h>
 #include <PicoMQTT.h>
 
-#define PIN_UP D1
-#define PIN_DN D0
-#define PIN_LT D6
-#define PIN_RT D5
-#define PIN_ST D7
-#define PIN_EN D2
-#define PIN_LED D4
-
-#define DEFAULT_INDEX 1
+#include "remote.h"
 
 const String board_id(ESP.getChipId(), HEX);
 String hostname;
 String hass_autodiscovery_topic;
 PicoMQTT::Client mqtt;
+
+Remote remote;
 
 #if __has_include("customize.h")
 #include "customize.h"
@@ -48,99 +42,9 @@ PicoUtils::PinOutput<D4, true> wifi_led;
 PicoUtils::Blink led_blinker(wifi_led, 0, 91);
 PicoUtils::RestfulServer<ESP8266WebServer> server;
 
-unsigned int current_index{DEFAULT_INDEX};
-
-enum command_t { COMMAND_DOWN = 'd', COMMAND_UP = 'u', COMMAND_STOP = 's' };
-enum button_t { BUTTON_DOWN, BUTTON_UP, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_STOP };
-
-
-void reset_remote() {
-    Serial.println(F("Resetting remote..."));
-    digitalWrite(PIN_EN, LOW);
-    delay(5000);
-    digitalWrite(PIN_EN, HIGH);
-    delay(1000);
-    current_index = DEFAULT_INDEX;
-    Serial.println(F("Reset complete."));
-}
-
-void push(button_t button, unsigned long time) {
-    const char * desc;
-    unsigned int pin = 0;
-    switch (button) {
-        case BUTTON_DOWN:
-            desc = "DOWN";
-            pin = PIN_DN;
-            break;
-        case BUTTON_UP:
-            desc = "UP";
-            pin = PIN_UP;
-            break;
-        case BUTTON_LEFT:
-            desc = "LEFT";
-            pin = PIN_LT;
-            break;
-        case BUTTON_RIGHT:
-            desc = "RIGHT";
-            pin = PIN_RT;
-            break;
-        case BUTTON_STOP:
-            desc = "STOP";
-            pin = PIN_ST;
-            break;
-        default:
-            return;
-    }
-
-    printf("Pressing %s button (pin %u) for %lu ms.\n", desc, pin, time);
-
-    digitalWrite(pin, HIGH);
-    delay(time);
-    digitalWrite(pin, LOW);
-    delay(time);
-}
-
-void init_output(unsigned int pin) {
-    pinMode(pin, OUTPUT);
-    digitalWrite(pin, LOW);
-}
-
-void navigate_to(unsigned int index) {
-    printf("Going from index %u to index %u\n", current_index, index);
-
-    while (current_index != index) {
-        if (current_index < index) {
-            push(BUTTON_RIGHT, 100);
-            current_index++;
-        } else {
-            push(BUTTON_LEFT, 100);
-            current_index--;
-        }
-    }
-}
-
-void execute_command(const command_t command) {
-    switch (command) {
-        case COMMAND_UP:
-            printf("  Opening %u\n", current_index);
-            push(BUTTON_UP, 250);
-            break;
-        case COMMAND_DOWN:
-            printf("  Closing %u\n", current_index);
-            push(BUTTON_DOWN, 250);
-            break;
-        case COMMAND_STOP:
-        default:
-            printf("  Stopping %u\n", current_index);
-            push(BUTTON_STOP, 250);
-            break;
-    }
-}
-
 bool process(const std::string & name, const command_t command) {
     if (name.empty()) {
-        navigate_to(0);
-        execute_command(command);
+        remote.execute(0, command);
         return true;
     }
 
@@ -148,8 +52,7 @@ bool process(const std::string & name, const command_t command) {
         const auto it = blinds.find(name);
         if (it != blinds.end()) {
             const unsigned int position = it->second;
-            navigate_to(position);
-            execute_command(command);
+            remote.execute(position, command);
             return true;
         }
     }
@@ -205,7 +108,7 @@ void setup_endpoints() {
     });
 
     server.on("/reset", [] {
-        reset_remote();
+        remote.reset();
         server.send(200, F("text/plain"), F("OK"));
     });
 
@@ -302,13 +205,7 @@ void setup() {
                      "https://github.com/mlesniew/rolek\n"
                      "\n"));
 
-    Serial.println(F("Initializing outputs..."));
-    init_output(PIN_EN);
-    init_output(PIN_UP);
-    init_output(PIN_DN);
-    init_output(PIN_LT);
-    init_output(PIN_RT);
-    init_output(PIN_ST);
+    remote.init();
 
     Serial.println(F("Initializing file system..."));
     LittleFS.begin();
@@ -332,9 +229,6 @@ void setup() {
     Serial.println(F("Setting up endpoints..."));
     setup_endpoints();
 
-    // do an initial remote reset
-    reset_remote();
-
     Serial.println(F("Starting up server..."));
     server.begin();
 
@@ -354,7 +248,7 @@ void setup() {
 
     mqtt.subscribe("rolek/" + board_id, [](const char * payload) {
         if (strcmp(payload, "reset") == 0) {
-            reset_remote();
+            remote.reset();
         }
     });
 
