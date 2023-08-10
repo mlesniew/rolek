@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <PicoUtils.h>
 
 #include "remote.h"
@@ -32,3 +33,5 @@ class Shutter: public PicoUtils::Periodic {
         command_t last_command;
         PicoUtils::Stopwatch last_command_time;
 };
+
+extern std::map<std::string, Shutter> blinds;

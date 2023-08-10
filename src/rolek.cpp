@@ -11,8 +11,8 @@
 
 #include "remote.h"
 #include "shutter.h"
+#include "hass.h"
 
-const String board_id(ESP.getChipId(), HEX);
 String hostname;
 String hass_autodiscovery_topic;
 PicoMQTT::Client mqtt;
@@ -237,88 +237,15 @@ void setup() {
     server.begin();
 
     Serial.println(F("Starting up MQTT..."));
-    mqtt.subscribe("rolek/" + board_id + "/+", [](const char * topic, const char * payload) {
-        const String name = mqtt.get_topic_element(topic, 2);
 
-        if (strcmp(payload, "STOP") == 0) {
-            process(name.c_str(), COMMAND_STOP);
-        } else if (strcmp(payload, "OPEN") == 0) {
-            process(name.c_str(), COMMAND_UP);
-        } else if (strcmp(payload, "CLOSE") == 0) {
-            process(name.c_str(), COMMAND_DOWN);
-        }
-
-    });
-
-    mqtt.subscribe("rolek/" + board_id, [](const char * payload) {
-        if (strcmp(payload, "reset") == 0) {
-            remote.reset();
-        }
-    });
-
+    HomeAssistant::subscribe(mqtt);
     mqtt.begin();
 
     Serial.println(F("Setup complete."));
 }
 
 PicoUtils::PeriodicRun hass_autodiscovery(300, 30, [] {
-    if (hass_autodiscovery_topic.length() == 0) {
-        return;
-    }
-
-    Serial.println("Home Assistant autodiscovery announcement...");
-
-    const String board_unique_id = "rolek-" + board_id;
-
-    for (const auto & kv : blinds) {
-        const auto unique_id = board_unique_id + "-" + String(kv.second.index);
-        const auto name = kv.first;
-        const String topic = hass_autodiscovery_topic + "/cover/" + unique_id + "/config";
-
-        StaticJsonDocument<1024> json;
-        json["unique_id"] = unique_id;
-        json["command_topic"] = "rolek/" + board_id + "/" + kv.first.c_str();
-        json["device_class"] = "shutter";  // TODO: are these shutters, shades or blinds?
-        json["name"] = "Roleta " + name;
-
-        auto device = json["device"];
-        device["name"] = "Roleta " + name;
-        device["suggested_area"] = name.substr(0, name.find(' '));
-        device["identifiers"][0] = unique_id;
-        device["via_device"] = board_unique_id;
-
-        serializeJsonPretty(json, Serial);
-
-        auto publish = mqtt.begin_publish(topic, measureJson(json));
-        serializeJson(json, publish);
-        publish.send();
-    }
-
-    {
-        const String unique_id = board_unique_id + "-remote-reset";
-        const String topic = hass_autodiscovery_topic + "/button/" + unique_id + "/config";
-
-        StaticJsonDocument<1024> json;
-        json["unique_id"] = unique_id;
-        json["command_topic"] = "rolek/" + board_id;
-        json["name"] = "Reset";
-        json["payload_press"] = "reset";
-
-        auto device = json["device"];
-        device["name"] = "Rolek";
-        device["manufacturer"] = "mlesniew";
-        device["sw_version"] = __DATE__ " " __TIME__;
-        device["configuration_url"] = "http://" + WiFi.localIP().toString();
-        device["identifiers"][0] = board_unique_id;
-
-        serializeJsonPretty(json, Serial);
-
-        auto publish = mqtt.begin_publish(topic, measureJson(json));
-        serializeJson(json, publish);
-        publish.send();
-    }
-
-    Serial.println("Home Assistant autodiscovery announcement complete.");
+    HomeAssistant::autodiscover(mqtt, hass_autodiscovery_topic);
 });
 
 void update_status_led() {
