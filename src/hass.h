@@ -2,9 +2,13 @@
 
 #include <PicoMQTT.h>
 
+#include "remote.h"
+
 namespace HomeAssistant {
 
-void subscribe(PicoMQTT::Client & mqtt);
-void autodiscover(PicoMQTT::Client & mqtt, const String & hass_autodiscovery_topic);
+void init(PicoMQTT::Client & mqtt);
+void autodiscover(const String & hass_autodiscovery_topic);
+void notify_state(unsigned int index, command_t command);
+void notify_position(unsigned int index, double position);
 
 }

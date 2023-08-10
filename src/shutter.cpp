@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 #include "shutter.h"
+#include "hass.h"
 
 void Shutter::execute(command_t command) {
     remote.execute(index, command);
@@ -49,4 +50,6 @@ void Shutter::update_position() {
 
 void Shutter::periodic_proc() {
     update_position();
+    HomeAssistant::notify_state(index, last_command);
+    HomeAssistant::notify_position(index, position);
 }

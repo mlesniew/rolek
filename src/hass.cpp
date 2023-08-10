@@ -7,15 +7,17 @@
 
 namespace {
 
+PicoMQTT::Client * mqtt;
 const String board_id(ESP.getChipId(), HEX);
 
 }
 
 namespace HomeAssistant {
 
-void subscribe(PicoMQTT::Client & mqtt) {
+void init(PicoMQTT::Client & mqtt_) {
+    mqtt = &mqtt_;
 
-    mqtt.subscribe("rolek/" + board_id + "/+/command", [&mqtt](const char * topic, const char * payload) {
+    mqtt->subscribe("rolek/" + board_id + "/+/command", [](const char * topic, const char * payload) {
 
         command_t command;
         if (strcmp(payload, "STOP") == 0) {
@@ -29,7 +31,7 @@ void subscribe(PicoMQTT::Client & mqtt) {
             return;
         }
 
-        const auto index = mqtt.get_topic_element(topic, 2).toInt();
+        const auto index = mqtt->get_topic_element(topic, 2).toInt();
 
         for (auto & kv : blinds) {
             if (long(kv.second.index) == index) {
@@ -39,7 +41,7 @@ void subscribe(PicoMQTT::Client & mqtt) {
 
     });
 
-    mqtt.subscribe("rolek/" + board_id + "/command", [](const char * payload) {
+    mqtt->subscribe("rolek/" + board_id + "/command", [](const char * payload) {
         if (strcmp(payload, "RESET") == 0) {
             remote.reset();
         }
@@ -47,8 +49,8 @@ void subscribe(PicoMQTT::Client & mqtt) {
 
 }
 
-void autodiscover(PicoMQTT::Client & mqtt, const String & hass_autodiscovery_topic) {
-    if (hass_autodiscovery_topic.length() == 0) {
+void autodiscover(const String & hass_autodiscovery_topic) {
+    if (!mqtt || (hass_autodiscovery_topic.length() == 0)) {
         Serial.println("Home Assistant autodiscovery disabled.");
         return;
     }
@@ -65,6 +67,8 @@ void autodiscover(PicoMQTT::Client & mqtt, const String & hass_autodiscovery_top
         StaticJsonDocument<1024> json;
         json["unique_id"] = unique_id;
         json["command_topic"] = "rolek/" + board_id + "/" + String(kv.second.index) + "/command";
+        json["state_topic"] = "rolek/" + board_id + "/" + String(kv.second.index) + "/state";
+        json["position_topic"] = "rolek/" + board_id + "/" + String(kv.second.index) + "/position";
         json["device_class"] = "shutter";  // TODO: are these shutters, shades or blinds?
         json["name"] = "Roleta " + name;
 
@@ -76,7 +80,7 @@ void autodiscover(PicoMQTT::Client & mqtt, const String & hass_autodiscovery_top
 
         serializeJsonPretty(json, Serial);
 
-        auto publish = mqtt.begin_publish(topic, measureJson(json));
+        auto publish = mqtt->begin_publish(topic, measureJson(json));
         serializeJson(json, publish);
         publish.send();
     }
@@ -100,12 +104,35 @@ void autodiscover(PicoMQTT::Client & mqtt, const String & hass_autodiscovery_top
 
         serializeJsonPretty(json, Serial);
 
-        auto publish = mqtt.begin_publish(topic, measureJson(json));
+        auto publish = mqtt->begin_publish(topic, measureJson(json));
         serializeJson(json, publish);
         publish.send();
     }
 
     Serial.println("Home Assistant autodiscovery announcement complete.");
+}
+
+void notify_state(unsigned int index, command_t command) {
+    if (mqtt) {
+        const auto topic = "rolek/" + board_id + "/" + String(index) + "/state";
+        switch (command) {
+            case COMMAND_STOP:
+                mqtt->publish(topic, "stopped");
+                break;
+            case COMMAND_UP:
+                mqtt->publish(topic, "opening");
+                break;
+            case COMMAND_DOWN:
+                mqtt->publish(topic, "closing");
+                break;
+        }
+    }
+}
+
+void notify_position(unsigned int index, double position) {
+    if (mqtt && !std::isnan(position)) {
+        mqtt->publish("rolek/" + board_id + "/" + String(index) + "/position", String(position));
+    }
 }
 
 }

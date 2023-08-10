@@ -238,14 +238,14 @@ void setup() {
 
     Serial.println(F("Starting up MQTT..."));
 
-    HomeAssistant::subscribe(mqtt);
+    HomeAssistant::init(mqtt);
     mqtt.begin();
 
     Serial.println(F("Setup complete."));
 }
 
-PicoUtils::PeriodicRun hass_autodiscovery(300, 30, [] {
-    HomeAssistant::autodiscover(mqtt, hass_autodiscovery_topic);
+PicoUtils::PeriodicRun hass_autodiscovery(10, [] {
+    HomeAssistant::autodiscover(hass_autodiscovery_topic);
 });
 
 void update_status_led() {
