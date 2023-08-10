@@ -10,6 +10,7 @@
 #include <PicoMQTT.h>
 
 #include "remote.h"
+#include "shutter.h"
 
 const String board_id(ESP.getChipId(), HEX);
 String hostname;
@@ -23,16 +24,16 @@ Remote remote;
 #else
 #warning "Using default config, create customize.h to customize."
 
-const std::map<std::string, unsigned int> blinds = {
+std::map<std::string, Shutter> blinds = {
     {"Living room", 1},
     {"Kitchen", 2},
     {"Bedroom", 3},
-    {"Attic", 4},
+    {"Bathroom", 4},
 };
 
 const std::map<std::string, std::vector<std::string>> groups = {
     {"Downstairs", {"Living room", "Kitchen"}},
-    {"Upstairs", {"Bedroom", "Attic"}},
+    {"Upstairs", {"Bedroom", "Bathroom"}},
 };
 
 #endif
@@ -51,8 +52,7 @@ bool process(const std::string & name, const command_t command) {
     {
         const auto it = blinds.find(name);
         if (it != blinds.end()) {
-            const unsigned int position = it->second;
-            remote.execute(position, command);
+            it->second.execute(command);
             return true;
         }
     }
@@ -267,7 +267,7 @@ PicoUtils::PeriodicRun hass_autodiscovery(300, 30, [] {
     const String board_unique_id = "rolek-" + board_id;
 
     for (const auto & kv : blinds) {
-        const auto unique_id = board_unique_id + "-" + String(kv.second);
+        const auto unique_id = board_unique_id + "-" + String(kv.second.index);
         const auto name = kv.first;
         const String topic = hass_autodiscovery_topic + "/cover/" + unique_id + "/config";
 
