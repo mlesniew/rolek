@@ -46,6 +46,10 @@ PicoUtils::RestfulServer<ESP8266WebServer> server;
 bool process(const std::string & name, const command_t command) {
     if (name.empty()) {
         remote.execute(0, command);
+
+        // notify individual shutters manually about the globally executed command
+        for (auto & kv : blinds) { kv.second.on_execute(command); }
+
         return true;
     }
 
@@ -331,6 +335,9 @@ void update_status_led() {
 };
 
 void loop() {
+    for (auto & kv : blinds) {
+        kv.second.tick();
+    }
     update_status_led();
     server.handleClient();
     mqtt.loop();
