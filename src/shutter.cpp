@@ -9,50 +9,65 @@ void Shutter::execute(command_t command) {
 }
 
 void Shutter::on_execute(command_t command) {
-    update_position();
-    last_command = command;
-    last_command_time.reset();
+    update_position_ans_state();
+    state = command;
 }
 
-void Shutter::update_position() {
-    const unsigned long elapsed_millis = last_command_time.elapsed_millis();
+void Shutter::update_position_ans_state() {
 
-    switch (last_command) {
-        case COMMAND_UP: {
-            const double new_pos = position + (double(elapsed_millis) / double(open_time_ms) * 100);
-            if ((elapsed_millis >= open_time_ms) || (new_pos >= 100)) {
-                position = 100;
-                last_command = COMMAND_STOP;
-            } else {
-                position = new_pos;
-            }
-            break;
-        }
+    const unsigned long elapsed_millis = std::min(state.elapsed_millis(), position.elapsed_millis());
 
-        case COMMAND_DOWN: {
-            const double new_pos = position - (double(elapsed_millis) / double(close_time_ms) * 100);
-            if ((elapsed_millis >= close_time_ms) || (new_pos <= 0)) {
-                position = 0;
-                last_command = COMMAND_STOP;
-            } else {
-                position = new_pos;
-            }
-            break;
-        }
-
-        default:
-            // noop
-            ;
+    if (elapsed_millis < 500) {
+        // update at most every 500 ms
+        return;
     }
 
-    if (!std::isnan(position))
-        last_command_time.reset();
+    unsigned long total_time_ms = 0;
+    double direction = 0;
 
-    printf("Position of shutter #%u: %.1f\n", index, position);
+    switch (state) {
+        case COMMAND_UP:
+            total_time_ms = open_time_ms;
+            direction = 1;
+            break;
+        case COMMAND_DOWN:
+            total_time_ms = close_time_ms;
+            direction = -1;
+            break;
+        default:
+            return;
+    }
+
+    if (std::isnan(position)) {
+        if (elapsed_millis > total_time_ms) {
+            position = 50 + 50 * direction;
+            state = COMMAND_STOP;
+        }
+    } else {
+        position = position + direction * (double(elapsed_millis) / double(open_time_ms) * 100);
+        if (position > 100) {
+            position = 100;
+            state = COMMAND_STOP;
+        }
+        if (position < 0) {
+            position = 0;
+            state = COMMAND_STOP;
+        }
+    }
 }
 
-void Shutter::periodic_proc() {
-    update_position();
-    HomeAssistant::notify_state(index, last_command);
-    HomeAssistant::notify_position(index, position);
+void Shutter::tick() {
+    update_position_ans_state();
+
+    if (last_hass_update_time.elapsed_millis() >= state.elapsed_millis()) {
+        printf("State of shutter %u is now '%c'.\n", index, char(state));
+        HomeAssistant::notify_state(index, state);
+    }
+
+    if (last_hass_update_time.elapsed_millis() >= position.elapsed_millis()) {
+        printf("Position of shutter %u is now %.2f.\n", index, double(position));
+        HomeAssistant::notify_position(index, position);
+    }
+
+    last_hass_update_time.reset();
 }

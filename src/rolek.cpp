@@ -238,15 +238,11 @@ void setup() {
 
     Serial.println(F("Starting up MQTT..."));
 
-    HomeAssistant::init(mqtt);
+    HomeAssistant::init(mqtt, hass_autodiscovery_topic);
     mqtt.begin();
 
     Serial.println(F("Setup complete."));
 }
-
-PicoUtils::PeriodicRun hass_autodiscovery(10, [] {
-    HomeAssistant::autodiscover(hass_autodiscovery_topic);
-});
 
 void update_status_led() {
     if (WiFi.status() == WL_CONNECTED) {
@@ -269,5 +265,4 @@ void loop() {
     server.handleClient();
     mqtt.loop();
     MDNS.update();
-    hass_autodiscovery.tick();
 }
