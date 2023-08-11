@@ -45,6 +45,9 @@ void Shutter::update_position() {
             ;
     }
 
+    if (!std::isnan(position))
+        last_command_time.reset();
+
     printf("Position of shutter #%u: %.1f\n", index, position);
 }
 
