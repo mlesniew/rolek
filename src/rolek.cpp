@@ -4,6 +4,7 @@
 #include <uri/UriRegex.h>
 #include <LittleFS.h>
 
+#include <ArduinoOTA.h>
 #include <WiFiManager.h>
 #include <ArduinoJson.h>
 #include <PicoUtils.h>
@@ -15,6 +16,8 @@
 
 String hostname;
 String hass_autodiscovery_topic;
+String ota_password;
+
 PicoMQTT::Client mqtt;
 
 Remote remote;
@@ -131,6 +134,7 @@ void load() {
     mqtt.port = config["mqtt"]["port"] | 1883;
     mqtt.username = config["mqtt"]["username"] | "";
     mqtt.password = config["mqtt"]["password"] | "";
+    ota_password = config["ota_password"] | "";
 }
 
 DynamicJsonDocument get() {
@@ -141,6 +145,7 @@ DynamicJsonDocument get() {
     config["mqtt"]["port"] = mqtt.port;
     config["mqtt"]["username"] = mqtt.username;
     config["mqtt"]["password"] = mqtt.password;
+    config["ota_password"] = ota_password;
     return config;
 }
 
@@ -164,6 +169,7 @@ void config_mode() {
     WiFiManagerParameter param_mqtt_password("mqtt_pass", "MQTT Password", mqtt.password.c_str(), 64);
     WiFiManagerParameter param_hass_topic("hass_autodiscovery_topic", "Home Assistant autodiscovery topic",
                                           hass_autodiscovery_topic.c_str(), 64);
+    WiFiManagerParameter param_ota_password("ota_password", "OTA Password", ota_password.c_str(), 64);
 
     WiFiManager wifi_manager;
 
@@ -173,6 +179,7 @@ void config_mode() {
     wifi_manager.addParameter(&param_mqtt_username);
     wifi_manager.addParameter(&param_mqtt_password);
     wifi_manager.addParameter(&param_hass_topic);
+    wifi_manager.addParameter(&param_ota_password);
 
     wifi_manager.startConfigPortal("Rolek");
 
@@ -182,6 +189,7 @@ void config_mode() {
     mqtt.username = param_mqtt_username.getValue();
     mqtt.password = param_mqtt_password.getValue();
     hass_autodiscovery_topic = param_hass_topic.getValue();
+    ota_password = param_ota_password.getValue();
 
     network_config::save();
 }
@@ -241,6 +249,12 @@ void setup() {
     HomeAssistant::init(mqtt, hass_autodiscovery_topic);
     mqtt.begin();
 
+    Serial.println(F("Starting up ArduinoOTA..."));
+    ArduinoOTA.setHostname(hostname.c_str());
+    if (ota_password.length())
+        ArduinoOTA.setPassword(ota_password.c_str());
+    ArduinoOTA.begin();
+
     Serial.println(F("Setup complete."));
 }
 
@@ -258,6 +272,7 @@ void update_status_led() {
 };
 
 void loop() {
+    ArduinoOTA.handle();
     for (auto & kv : blinds) {
         kv.second.tick();
     }
