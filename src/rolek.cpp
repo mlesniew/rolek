@@ -247,6 +247,8 @@ void setup() {
     Serial.println(F("Starting up MQTT..."));
 
     HomeAssistant::init(mqtt, hass_autodiscovery_topic);
+
+    mqtt.client_id = "rolek-" + String(ESP.getChipId(), HEX);
     mqtt.begin();
 
     Serial.println(F("Starting up ArduinoOTA..."));
