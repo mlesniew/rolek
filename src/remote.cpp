@@ -1,5 +1,7 @@
 #include <Arduino.h>
 
+#include <PicoSyslog.h>
+
 #include "remote.h"
 
 #define PIN_UP D1
@@ -11,13 +13,15 @@
 
 #define DEFAULT_INDEX 1
 
+extern PicoSyslog::Logger syslog;
+
 static void init_output(unsigned int pin) {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, LOW);
 }
 
 void Remote::init() {
-    Serial.println(F("Initializing outputs..."));
+    syslog.println(F("Initializing outputs..."));
     init_output(PIN_EN);
     init_output(PIN_UP);
     init_output(PIN_DN);
@@ -28,13 +32,13 @@ void Remote::init() {
 }
 
 void Remote::reset() {
-    Serial.println(F("Resetting remote..."));
+    syslog.println(F("Resetting remote..."));
     digitalWrite(PIN_EN, LOW);
     delay(5000);
     digitalWrite(PIN_EN, HIGH);
     delay(1000);
     current_index = DEFAULT_INDEX;
-    Serial.println(F("Reset complete."));
+    syslog.println(F("Reset complete."));
 }
 
 void Remote::push(button_t button, unsigned long time) {
@@ -65,7 +69,7 @@ void Remote::push(button_t button, unsigned long time) {
             return;
     }
 
-    printf("Pressing %s button (pin %u) for %lu ms.\n", desc, pin, time);
+    syslog.printf("Pressing %s button (pin %u) for %lu ms.\n", desc, pin, time);
 
     digitalWrite(pin, HIGH);
     delay(time);
@@ -74,7 +78,7 @@ void Remote::push(button_t button, unsigned long time) {
 }
 
 void Remote::navigate_to(unsigned int index) {
-    printf("Going from index %u to index %u\n", current_index, index);
+    syslog.printf("Going from index %u to index %u\n", current_index, index);
 
     while (current_index != index) {
         if (current_index < index) {
@@ -90,16 +94,16 @@ void Remote::navigate_to(unsigned int index) {
 void Remote::execute_command(const command_t command) {
     switch (command) {
         case COMMAND_UP:
-            printf("  Opening %u\n", current_index);
+            syslog.printf("  Opening %u\n", current_index);
             push(BUTTON_UP, 250);
             break;
         case COMMAND_DOWN:
-            printf("  Closing %u\n", current_index);
+            syslog.printf("  Closing %u\n", current_index);
             push(BUTTON_DOWN, 250);
             break;
         case COMMAND_STOP:
         default:
-            printf("  Stopping %u\n", current_index);
+            syslog.printf("  Stopping %u\n", current_index);
             push(BUTTON_STOP, 250);
             break;
     }

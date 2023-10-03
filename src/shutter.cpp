@@ -1,7 +1,11 @@
 #include <Arduino.h>
 
+#include <PicoSyslog.h>
+
 #include "shutter.h"
 #include "hass.h"
+
+extern PicoSyslog::Logger syslog;
 
 void Shutter::execute(command_t command) {
     remote.execute(index, command);
@@ -60,12 +64,12 @@ void Shutter::tick() {
     update_position_ans_state();
 
     if (last_hass_update_time.elapsed_millis() >= state.elapsed_millis()) {
-        printf("State of shutter %u is now '%c'.\n", index, char(state));
+        syslog.printf("State of shutter %u is now '%c'.\n", index, char(state));
         HomeAssistant::notify_state(index, state);
     }
 
     if (last_hass_update_time.elapsed_millis() >= position.elapsed_millis()) {
-        printf("Position of shutter %u is now %.2f.\n", index, double(position));
+        syslog.printf("Position of shutter %u is now %.2f.\n", index, double(position));
         HomeAssistant::notify_position(index, position);
     }
 

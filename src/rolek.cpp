@@ -9,6 +9,7 @@
 #include <ArduinoJson.h>
 #include <PicoUtils.h>
 #include <PicoMQTT.h>
+#include <PicoSyslog.h>
 
 #include "remote.h"
 #include "shutter.h"
@@ -19,6 +20,7 @@ String hass_autodiscovery_topic;
 String ota_password;
 
 PicoMQTT::Client mqtt;
+PicoSyslog::Logger syslog("rolek");
 
 Remote remote;
 
@@ -81,7 +83,7 @@ bool process(const std::string & name, const command_t command) {
 void setup_endpoints() {
     server.on(UriRegex("/blinds(.*)/(up|down|stop)"), HTTP_POST, [] {
 
-        printf("POST %s\n", server.uri().c_str());
+        Serial.printf("POST %s\n", server.uri().c_str());
 
         String name = server.decodedPathArg(0);
         const char direction = server.decodedPathArg(1).c_str()[0];
@@ -130,11 +132,12 @@ void load() {
     PicoUtils::JsonConfigFile<StaticJsonDocument<256>> config(LittleFS, FPSTR(CONFIG_PATH));
     hostname = config["hostname"] | "rolek";
     hass_autodiscovery_topic = config["hass_autodiscovery_topic"] | "homeassistant";
-    mqtt.host = config["mqtt"]["host"] | "";
+    mqtt.host = config["mqtt"]["host"] | "192.168.1.100";
     mqtt.port = config["mqtt"]["port"] | 1883;
-    mqtt.username = config["mqtt"]["username"] | "";
-    mqtt.password = config["mqtt"]["password"] | "";
+    mqtt.username = config["mqtt"]["username"] | "mqtt";
+    mqtt.password = config["mqtt"]["password"] | "mosquitto";
     ota_password = config["ota_password"] | "";
+    syslog.server = config["syslog"] | "192.168.1.100";
 }
 
 DynamicJsonDocument get() {
@@ -146,6 +149,7 @@ DynamicJsonDocument get() {
     config["mqtt"]["username"] = mqtt.username;
     config["mqtt"]["password"] = mqtt.password;
     config["ota_password"] = ota_password;
+    config["syslog"] = syslog.server;
     return config;
 }
 
@@ -170,6 +174,7 @@ void config_mode() {
     WiFiManagerParameter param_hass_topic("hass_autodiscovery_topic", "Home Assistant autodiscovery topic",
                                           hass_autodiscovery_topic.c_str(), 64);
     WiFiManagerParameter param_ota_password("ota_password", "OTA Password", ota_password.c_str(), 64);
+    WiFiManagerParameter param_syslog_server("syslog", "Syslog server", syslog.server.c_str(), 64);
 
     WiFiManager wifi_manager;
 
@@ -190,6 +195,7 @@ void config_mode() {
     mqtt.password = param_mqtt_password.getValue();
     hass_autodiscovery_topic = param_hass_topic.getValue();
     ota_password = param_ota_password.getValue();
+    syslog.server = param_syslog_server.getValue();
 
     network_config::save();
 }
@@ -253,8 +259,9 @@ void setup() {
 
     Serial.println(F("Starting up ArduinoOTA..."));
     ArduinoOTA.setHostname(hostname.c_str());
-    if (ota_password.length())
+    if (ota_password.length()) {
         ArduinoOTA.setPassword(ota_password.c_str());
+    }
     ArduinoOTA.begin();
 
     Serial.println(F("Setup complete."));

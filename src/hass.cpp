@@ -1,9 +1,12 @@
 #include <Arduino.h>
 
 #include <ArduinoJson.h>
+#include <PicoSyslog.h>
 
 #include "hass.h"
 #include "shutter.h"
+
+extern PicoSyslog::Logger syslog;
 
 namespace {
 
@@ -68,11 +71,11 @@ void init(PicoMQTT::Client & mqtt_, const String & hass_autodiscovery_topic) {
 
 void autodiscover(const String & hass_autodiscovery_topic) {
     if (!mqtt || (hass_autodiscovery_topic.length() == 0)) {
-        Serial.println("Home Assistant autodiscovery disabled.");
+        syslog.println("Home Assistant autodiscovery disabled.");
         return;
     }
 
-    Serial.println("Home Assistant autodiscovery messages...");
+    syslog.println("Home Assistant autodiscovery messages...");
 
     const String board_unique_id = "rolek-" + board_id;
 
@@ -124,7 +127,7 @@ void autodiscover(const String & hass_autodiscovery_topic) {
         publish.send();
     }
 
-    Serial.println("Home Assistant autodiscovery announcement complete.");
+    syslog.println("Home Assistant autodiscovery announcement complete.");
 }
 
 void notify_state(unsigned int index, command_t command) {
