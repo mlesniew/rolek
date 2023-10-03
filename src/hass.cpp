@@ -145,10 +145,13 @@ void notify_state(unsigned int index, command_t command) {
 }
 
 void notify_position(unsigned int index, double position) {
-    if (mqtt && !std::isnan(position)) {
-        mqtt->publish("rolek/" + board_id + "/" + String(index) + "/position", String(position),
-                      0, true);
+    if (!mqtt) {
+        return;
     }
+
+    mqtt->publish(
+        "rolek/" + board_id + "/" + String(index) + "/position",
+        String(std::isnan(position) ? 50 : position), 0, true);
 }
 
 }
