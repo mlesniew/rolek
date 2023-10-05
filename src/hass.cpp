@@ -31,7 +31,15 @@ void notify_state(const Shutter & shutter) {
     const auto topic = "rolek/" + board_id + "/" + String(index) + "/state";
     switch (command) {
         case COMMAND_STOP:
-            mqtt.publish(topic, "stopped", 0, true);
+            {
+                const auto position = shutter.get_position();
+                if (position <= 0)
+                    mqtt.publish(topic, "closed", 0, true);
+                else if (position >= 100)
+                    mqtt.publish(topic, "open", 0, true);
+                else
+                    mqtt.publish(topic, "stopped", 0, true);
+            }
             break;
         case COMMAND_UP:
             mqtt.publish(topic, "opening", 0, true);
