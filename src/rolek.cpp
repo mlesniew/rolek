@@ -252,7 +252,7 @@ void setup() {
 
     Serial.println(F("Starting up MQTT..."));
 
-    HomeAssistant::init(mqtt, hass_autodiscovery_topic);
+    HomeAssistant::init();
 
     mqtt.client_id = "rolek-" + String(ESP.getChipId(), HEX);
     mqtt.begin();
@@ -289,4 +289,5 @@ void loop() {
     server.handleClient();
     mqtt.loop();
     MDNS.update();
+    HomeAssistant::tick();
 }

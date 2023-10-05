@@ -31,12 +31,10 @@ class Shutter {
         const unsigned long open_time_ms, close_time_ms;
 
     protected:
-        void update_position_ans_state();
+        void update_position_and_state();
 
         PicoUtils::TimedValue<double> position;  // 0 == closed, 100 == open
         PicoUtils::TimedValue<command_t> state;
-
-        PicoUtils::Stopwatch last_hass_update_time;
 };
 
 extern std::map<std::string, Shutter> blinds;

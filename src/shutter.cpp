@@ -13,11 +13,11 @@ void Shutter::execute(command_t command) {
 }
 
 void Shutter::on_execute(command_t command) {
-    update_position_ans_state();
+    update_position_and_state();
     state = command;
 }
 
-void Shutter::update_position_ans_state() {
+void Shutter::update_position_and_state() {
 
     const unsigned long elapsed_millis = std::min(state.elapsed_millis(), position.elapsed_millis());
 
@@ -61,17 +61,5 @@ void Shutter::update_position_ans_state() {
 }
 
 void Shutter::tick() {
-    update_position_ans_state();
-
-    if (last_hass_update_time.elapsed_millis() >= state.elapsed_millis()) {
-        syslog.printf("State of shutter %u is now '%c'.\n", index, char(state));
-        HomeAssistant::notify_state(index, state);
-    }
-
-    if (last_hass_update_time.elapsed_millis() >= position.elapsed_millis()) {
-        syslog.printf("Position of shutter %u is now %.2f.\n", index, double(position));
-        HomeAssistant::notify_position(index, position);
-    }
-
-    last_hass_update_time.reset();
+    update_position_and_state();
 }

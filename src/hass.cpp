@@ -1,76 +1,57 @@
 #include <Arduino.h>
 
+#include <map>
+
 #include <ArduinoJson.h>
 #include <PicoSyslog.h>
+#include <PicoUtils.h>
 
 #include "hass.h"
 #include "shutter.h"
 
+extern PicoMQTT::Client mqtt;
 extern PicoSyslog::Logger syslog;
+extern String hass_autodiscovery_topic;
+extern std::map<std::string, Shutter> blinds;
 
 namespace {
 
-PicoMQTT::Client * mqtt;
 const String board_id(ESP.getChipId(), HEX);
+
+std::list<PicoUtils::Watch<double>> position_watches;
+std::list<PicoUtils::Watch<command_t>> state_watches;
 
 }
 
 namespace HomeAssistant {
 
-void init(PicoMQTT::Client & mqtt_, const String & hass_autodiscovery_topic) {
-    mqtt = &mqtt_;
-
-    mqtt->subscribe("rolek/" + board_id + "/+/command", [](const char * topic, const char * payload) {
-
-        command_t command;
-        if (strcmp(payload, "STOP") == 0) {
-            command = COMMAND_STOP;
-        } else if (strcmp(payload, "OPEN") == 0) {
-            command = COMMAND_UP;
-        } else if (strcmp(payload, "CLOSE") == 0) {
-            command = COMMAND_DOWN;
-        } else {
-            // invalid command
-            return;
-        }
-
-        const auto index = mqtt->get_topic_element(topic, 2).toInt();
-
-        for (auto & kv : blinds) {
-            if (long(kv.second.index) == index) {
-                kv.second.execute(command);
-            }
-        }
-
-    });
-
-    mqtt->subscribe("rolek/" + board_id + "/command", [](const char * payload) {
-        if (strcmp(payload, "RESET") == 0) {
-            remote.reset();
-        }
-    });
-
-    mqtt->will.topic = "rolek/" + board_id + "/availability";
-    mqtt->will.payload = "offline";
-    mqtt->will.retain = true;
-
-    mqtt->connected_callback = [&hass_autodiscovery_topic] {
-        // send autodiscovery messages
-        autodiscover(hass_autodiscovery_topic);
-
-        // notify about the state of blinds
-        for (const auto & kv : blinds) {
-            notify_state(kv.second.index, kv.second.get_state());
-            notify_position(kv.second.index, kv.second.get_position());
-        }
-
-        // notify about availability
-        mqtt->publish(mqtt->will.topic, "online", 0, true);
-    };
+void notify_state(const Shutter & shutter) {
+    const auto index = shutter.index;
+    const auto command = shutter.get_state();
+    const auto topic = "rolek/" + board_id + "/" + String(index) + "/state";
+    switch (command) {
+        case COMMAND_STOP:
+            mqtt.publish(topic, "stopped", 0, true);
+            break;
+        case COMMAND_UP:
+            mqtt.publish(topic, "opening", 0, true);
+            break;
+        case COMMAND_DOWN:
+            mqtt.publish(topic, "closing", 0, true);
+            break;
+    }
 }
 
-void autodiscover(const String & hass_autodiscovery_topic) {
-    if (!mqtt || (hass_autodiscovery_topic.length() == 0)) {
+void notify_position(const Shutter & shutter) {
+    const auto index = shutter.index;
+    const auto position = shutter.get_position();
+    mqtt.publish(
+        "rolek/" + board_id + "/" + String(index) + "/position",
+        String(std::isnan(position) ? 50 : position), 0, true);
+}
+
+void autodiscover() {
+    if (hass_autodiscovery_topic.length() == 0) {
         syslog.println("Home Assistant autodiscovery disabled.");
         return;
     }
@@ -99,7 +80,7 @@ void autodiscover(const String & hass_autodiscovery_topic) {
         device["identifiers"][0] = unique_id;
         device["via_device"] = board_unique_id;
 
-        auto publish = mqtt->begin_publish(topic, measureJson(json), 0, true);
+        auto publish = mqtt.begin_publish(topic, measureJson(json), 0, true);
         serializeJson(json, publish);
         publish.send();
     }
@@ -122,7 +103,7 @@ void autodiscover(const String & hass_autodiscovery_topic) {
         device["configuration_url"] = "http://" + WiFi.localIP().toString();
         device["identifiers"][0] = board_unique_id;
 
-        auto publish = mqtt->begin_publish(topic, measureJson(json), 0, true);
+        auto publish = mqtt.begin_publish(topic, measureJson(json), 0, true);
         serializeJson(json, publish);
         publish.send();
     }
@@ -130,31 +111,68 @@ void autodiscover(const String & hass_autodiscovery_topic) {
     syslog.println("Home Assistant autodiscovery announcement complete.");
 }
 
-void notify_state(unsigned int index, command_t command) {
-    if (mqtt) {
-        const auto topic = "rolek/" + board_id + "/" + String(index) + "/state";
-        switch (command) {
-            case COMMAND_STOP:
-                mqtt->publish(topic, "stopped", 0, true);
-                break;
-            case COMMAND_UP:
-                mqtt->publish(topic, "opening", 0, true);
-                break;
-            case COMMAND_DOWN:
-                mqtt->publish(topic, "closing", 0, true);
-                break;
+void init() {
+    mqtt.subscribe("rolek/" + board_id + "/+/command", [](const char * topic, const char * payload) {
+
+        command_t command;
+        if (strcmp(payload, "STOP") == 0) {
+            command = COMMAND_STOP;
+        } else if (strcmp(payload, "OPEN") == 0) {
+            command = COMMAND_UP;
+        } else if (strcmp(payload, "CLOSE") == 0) {
+            command = COMMAND_DOWN;
+        } else {
+            // invalid command
+            return;
         }
+
+        const auto index = mqtt.get_topic_element(topic, 2).toInt();
+
+        for (auto & kv : blinds) {
+            if (long(kv.second.index) == index) {
+                kv.second.execute(command);
+            }
+        }
+    });
+
+    mqtt.subscribe("rolek/" + board_id + "/command", [](const char * payload) {
+        if (strcmp(payload, "RESET") == 0) {
+            remote.reset();
+        }
+    });
+
+    mqtt.will.topic = "rolek/" + board_id + "/availability";
+    mqtt.will.payload = "offline";
+    mqtt.will.retain = true;
+
+    mqtt.connected_callback = [] {
+        // send autodiscovery messages
+        autodiscover();
+
+        // notify about the state of blinds
+        for (const auto & watch: position_watches) watch.fire();
+        for (const auto & watch: state_watches) watch.fire();
+
+        // notify about availability
+        mqtt.publish(mqtt.will.topic, "online", 0, true);
+    };
+
+    for (const auto & kv : blinds) {
+        const auto & shutter = kv.second;
+        position_watches.push_back(PicoUtils::Watch<double>(
+                [&shutter] {
+                    const auto position = shutter.get_position();
+                    return std::isnan(position) ? 50 : position;
+                },
+                [&shutter] { notify_position(shutter); }));
+        state_watches.push_back(PicoUtils::Watch<command_t>([&shutter] { return shutter.get_state(); },
+                                                            [&shutter] { notify_state(shutter); }));
     }
 }
 
-void notify_position(unsigned int index, double position) {
-    if (!mqtt) {
-        return;
-    }
-
-    mqtt->publish(
-        "rolek/" + board_id + "/" + String(index) + "/position",
-        String(std::isnan(position) ? 50 : position), 0, true);
+void tick() {
+    for (const auto & watch: position_watches) watch.tick();
+    for (const auto & watch: state_watches) watch.tick();
 }
 
 }
