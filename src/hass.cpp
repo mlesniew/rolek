@@ -68,6 +68,7 @@ void autodiscover() {
 
     const String board_unique_id = "rolek-" + board_id;
 
+
     for (const auto & kv : blinds) {
         const auto unique_id = board_unique_id + "-" + String(kv.second.index);
         const auto name = kv.first;
@@ -93,16 +94,32 @@ void autodiscover() {
         publish.send();
     }
 
-    {
-        const String unique_id = board_unique_id + "-remote-reset";
+    struct Button {
+        const char * name;
+        const char * friendly_name;
+        const char * payload;
+        const char * icon;
+    };
+
+    static const Button buttons[] = {
+        {"reset-remote", "Reset remote", "RESET", "mdi:lightning-bolt" },
+        {"up", "Open all shutters", "UP", "mdi:arrow-up-bold" },
+        {"down", "Close all shutters", "DOWN", "mdi:arrow-down-bold" },
+        {"stop", "Stop all shutters", "STOP", "mdi:stop"},
+    };
+
+    for (const auto & button : buttons) {
+        const String unique_id = board_unique_id + "-" + button.name;
         const String topic = hass_autodiscovery_topic + "/button/" + unique_id + "/config";
 
         StaticJsonDocument<1024> json;
         json["unique_id"] = unique_id;
+        json["object_id"] = String("rolek-") + button.name;
         json["command_topic"] = "rolek/" + board_id + "/command";
         json["availability_topic"] = "rolek/" + board_id + "/availability";
-        json["name"] = "Reset";
-        json["payload_press"] = "RESET";
+        json["name"] = button.friendly_name;
+        json["payload_press"] = button.payload;
+        json["icon"] = button.icon;
 
         auto device = json["device"];
         device["name"] = "Rolek";
