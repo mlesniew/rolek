@@ -11,7 +11,7 @@ const emit = defineEmits([
 ]);
 
 const request = (direction) => {
-  let url = "/blinds/";
+  let url = "/shutters/";
   if (props.name) {
     url += props.name + "/";
   }

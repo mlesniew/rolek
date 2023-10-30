@@ -3,6 +3,7 @@
 #include <map>
 
 #include <ArduinoJson.h>
+#include <PicoMQTT.h>
 #include <PicoSyslog.h>
 #include <PicoUtils.h>
 
@@ -12,7 +13,7 @@
 extern PicoMQTT::Client mqtt;
 extern PicoSyslog::Logger syslog;
 extern String hass_autodiscovery_topic;
-extern std::map<std::string, Shutter> blinds;
+extern std::map<std::string, Shutter> shutters;
 
 namespace {
 
@@ -69,7 +70,7 @@ void autodiscover() {
     const String board_unique_id = "rolek-" + board_id;
 
 
-    for (const auto & kv : blinds) {
+    for (const auto & kv : shutters) {
         const auto unique_id = board_unique_id + "-" + String(kv.second.index);
         const auto name = kv.first;
         const String topic = hass_autodiscovery_topic + "/cover/" + unique_id + "/config";
@@ -80,7 +81,7 @@ void autodiscover() {
         json["state_topic"] = "rolek/" + board_id + "/" + String(kv.second.index) + "/state";
         json["position_topic"] = "rolek/" + board_id + "/" + String(kv.second.index) + "/position";
         json["availability_topic"] = "rolek/" + board_id + "/availability";
-        json["device_class"] = "shutter";  // TODO: are these shutters, shades or blinds?
+        json["device_class"] = "shutter";
         json["name"] = "Roleta " + name;
 
         auto device = json["device"];
@@ -153,7 +154,7 @@ void init() {
 
         const auto index = mqtt.get_topic_element(topic, 2).toInt();
 
-        for (auto & kv : blinds) {
+        for (auto & kv : shutters) {
             if (long(kv.second.index) == index) {
                 kv.second.execute(command);
             }
@@ -174,7 +175,7 @@ void init() {
         // send autodiscovery messages
         autodiscover();
 
-        // notify about the state of blinds
+        // notify about the state of shutters
         for (auto & watch: position_watches) watch.fire();
         for (auto & watch: state_watches) watch.fire();
 
@@ -182,7 +183,7 @@ void init() {
         mqtt.publish(mqtt.will.topic, "online", 0, true);
     };
 
-    for (const auto & kv : blinds) {
+    for (const auto & kv : shutters) {
         const auto & shutter = kv.second;
         position_watches.push_back(PicoUtils::Watch<double>(
                 [&shutter] {

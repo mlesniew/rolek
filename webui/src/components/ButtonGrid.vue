@@ -18,9 +18,9 @@ const reload = () => {
   error.value = false;
   names.value = null;
   axios
-    .get("blinds")
+    .get("shutters")
     .then((response) => {
-      names.value = response.data["blinds"].concat(response.data["groups"]);
+      names.value = response.data["shutters"].concat(response.data["groups"]);
       names.value.sort();
     })
     .catch(() => {

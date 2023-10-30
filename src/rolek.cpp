@@ -29,7 +29,7 @@ Remote remote;
 #else
 #warning "Using default config, create customize.h to customize."
 
-std::map<std::string, Shutter> blinds = {
+std::map<std::string, Shutter> shutters = {
     {"Living room", 1},
     {"Kitchen", 2},
     {"Bedroom", 3},
@@ -53,14 +53,14 @@ bool process(const std::string & name, const command_t command) {
         remote.execute(0, command);
 
         // notify individual shutters manually about the globally executed command
-        for (auto & kv : blinds) { kv.second.on_execute(command); }
+        for (auto & kv : shutters) { kv.second.on_execute(command); }
 
         return true;
     }
 
     {
-        const auto it = blinds.find(name);
-        if (it != blinds.end()) {
+        const auto it = shutters.find(name);
+        if (it != shutters.end()) {
             it->second.execute(command);
             return true;
         }
@@ -81,7 +81,7 @@ bool process(const std::string & name, const command_t command) {
 }
 
 void setup_endpoints() {
-    server.on(UriRegex("/blinds(.*)/(up|down|stop)"), HTTP_POST, [] {
+    server.on(UriRegex("/shutters(.*)/(up|down|stop)"), HTTP_POST, [] {
 
         Serial.printf("POST %s\n", server.uri().c_str());
 
@@ -101,10 +101,10 @@ void setup_endpoints() {
         server.send(success ? 200 : 404);
     });
 
-    server.on("/blinds", [] {
+    server.on("/shutters", [] {
         StaticJsonDocument<1024> json;
-        auto blinds_array = json["blinds"].to<JsonArray>();
-        for (const auto & kv : blinds) {
+        auto blinds_array = json["shutters"].to<JsonArray>();
+        for (const auto & kv : shutters) {
             blinds_array.add(kv.first);
         }
 
@@ -282,7 +282,7 @@ void update_status_led() {
 
 void loop() {
     ArduinoOTA.handle();
-    for (auto & kv : blinds) {
+    for (auto & kv : shutters) {
         kv.second.tick();
     }
     update_status_led();
