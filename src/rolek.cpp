@@ -222,8 +222,6 @@ void setup() {
 
     setup_shutters();
 
-    MDNS.begin(hostname);
-
     Serial.println(F("Setting up endpoints..."));
     setup_endpoints();
 
@@ -268,6 +266,5 @@ void loop() {
     update_status_led();
     server.handleClient();
     mqtt.loop();
-    MDNS.update();
     HomeAssistant::tick();
 }
