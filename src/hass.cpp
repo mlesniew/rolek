@@ -36,17 +36,17 @@ void notify_state(const Shutter & shutter) {
     const auto command = shutter.get_state();
     const auto topic = "rolek/" + board_id + "/" + String(index) + "/state";
     switch (command) {
-        case COMMAND_STOP:
-            {
-                const auto position = shutter.get_position();
-                if (position <= 0)
-                    mqtt.publish(topic, "closed", 0, true);
-                else if (position >= 100)
-                    mqtt.publish(topic, "open", 0, true);
-                else
-                    mqtt.publish(topic, "stopped", 0, true);
+        case COMMAND_STOP: {
+            const auto position = shutter.get_position();
+            if (position <= 0) {
+                mqtt.publish(topic, "closed", 0, true);
+            } else if (position >= 100) {
+                mqtt.publish(topic, "open", 0, true);
+            } else {
+                mqtt.publish(topic, "stopped", 0, true);
             }
-            break;
+        }
+        break;
         case COMMAND_UP:
             mqtt.publish(topic, "opening", 0, true);
             break;
@@ -180,8 +180,8 @@ void init() {
         autodiscover();
 
         // notify about the state of shutters
-        for (auto & watch: position_watches) watch.fire();
-        for (auto & watch: state_watches) watch.fire();
+        for (auto & watch : position_watches) { watch.fire(); }
+        for (auto & watch : state_watches) { watch.fire(); }
 
         // notify about availability
         mqtt.publish(mqtt.will.topic, "online", 0, true);
@@ -190,19 +190,19 @@ void init() {
     for (const auto & kv : shutters) {
         const auto & shutter = kv.second;
         position_watches.push_back(PicoUtils::Watch<double>(
-                [&shutter] {
-                    const auto position = shutter.get_position();
-                    return std::isnan(position) ? 50 : position;
-                },
-                [&shutter] { notify_position(shutter); }));
+        [&shutter] {
+            const auto position = shutter.get_position();
+            return std::isnan(position) ? 50 : position;
+        },
+        [&shutter] { notify_position(shutter); }));
         state_watches.push_back(PicoUtils::Watch<command_t>([&shutter] { return shutter.get_state(); },
-                                                            [&shutter] { notify_state(shutter); }));
+                                [&shutter] { notify_state(shutter); }));
     }
 }
 
 void tick() {
-    for (auto & watch: position_watches) watch.tick();
-    for (auto & watch: state_watches) watch.tick();
+    for (auto & watch : position_watches) { watch.tick(); }
+    for (auto & watch : state_watches) { watch.tick(); }
 }
 
 }
