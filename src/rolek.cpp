@@ -5,7 +5,6 @@
 #include <LittleFS.h>
 
 #include <ArduinoOTA.h>
-#include <WiFiManager.h>
 #include <ArduinoJson.h>
 #include <PicoUtils.h>
 #include <PicoMQTT.h>
@@ -67,7 +66,7 @@ bool process(const String & name, const command_t command) {
 void setup_endpoints() {
     server.on(UriRegex("/shutters(.*)/(up|down|stop)"), HTTP_POST, [] {
 
-        Serial.printf("POST %s\n", server.uri().c_str());
+        syslog.printf("POST %s\n", server.uri().c_str());
 
         String name = server.decodedPathArg(0);
         const char direction = server.decodedPathArg(1).c_str()[0];
@@ -139,80 +138,43 @@ void setup_shutters() {
     }
 }
 
-namespace network_config {
 
-const char CONFIG_PATH[] PROGMEM = "/network.json";
+void setup_wifi() {
+    WiFi.hostname(hostname);
+    WiFi.setAutoReconnect(true);
 
-void load() {
-    PicoUtils::JsonConfigFile<StaticJsonDocument<256>> config(LittleFS, FPSTR(CONFIG_PATH));
-    hostname = config["hostname"] | "rolek";
-    hass_autodiscovery_topic = config["hass_autodiscovery_topic"] | "homeassistant";
-    mqtt.host = config["mqtt"]["host"] | "";
-    mqtt.port = config["mqtt"]["port"] | 1883;
-    mqtt.username = config["mqtt"]["username"] | "mqtt";
-    mqtt.password = config["mqtt"]["password"] | "mosquitto";
-    password = config["password"] | "";
-    syslog.server = config["syslog"] | "";
-}
-
-DynamicJsonDocument get() {
-    DynamicJsonDocument config(1024);
-    config["hostname"] = hostname;
-    config["hass_autodiscovery_topic"] = hass_autodiscovery_topic;
-    config["mqtt"]["host"] = mqtt.host;
-    config["mqtt"]["port"] = mqtt.port;
-    config["mqtt"]["username"] = mqtt.username;
-    config["mqtt"]["password"] = mqtt.password;
-    config["password"] = password;
-    config["syslog"] = syslog.server;
-    return config;
-}
-
-void save() {
-    auto file = LittleFS.open(FPSTR(CONFIG_PATH), "w");
-    if (file) {
-        serializeJson(get(), file);
-        file.close();
+    Serial.println(F("Press button now to enter SmartConfig."));
+    led_blinker.set_pattern(1);
+    const PicoUtils::Stopwatch stopwatch;
+    bool smart_config = false;
+    {
+        while (!smart_config && (stopwatch.elapsed_millis() < 3 * 1000)) {
+            smart_config = flash_button;
+            delay(100);
+        }
     }
-}
 
-}
+    if (smart_config) {
+        led_blinker.set_pattern(0b100100100 << 9);
 
-void config_mode() {
-    led_blinker.set_pattern(0b100100100 << 9);
+        Serial.println(F("Entering SmartConfig mode."));
+        WiFi.beginSmartConfig();
+        while (!WiFi.smartConfigDone() && (stopwatch.elapsed_millis() < 5 * 60 * 1000)) {
+            delay(100);
+        }
 
-    WiFiManagerParameter param_hostname("hostname", "Hostname", hostname.c_str(), 64);
-    WiFiManagerParameter param_mqtt_server("mqtt_server", "MQTT Server", mqtt.host.c_str(), 64);
-    WiFiManagerParameter param_mqtt_port("mqtt_port", "MQTT Port", String(mqtt.port).c_str(), 64);
-    WiFiManagerParameter param_mqtt_username("mqtt_user", "MQTT Username", mqtt.username.c_str(), 64);
-    WiFiManagerParameter param_mqtt_password("mqtt_pass", "MQTT Password", mqtt.password.c_str(), 64);
-    WiFiManagerParameter param_hass_topic("hass_autodiscovery_topic", "Home Assistant autodiscovery topic",
-                                          hass_autodiscovery_topic.c_str(), 64);
-    WiFiManagerParameter param_password("password", "Password", password.c_str(), 64);
-    WiFiManagerParameter param_syslog_server("syslog", "Syslog server", syslog.server.c_str(), 64);
+        if (WiFi.smartConfigDone()) {
+            Serial.println(F("SmartConfig success."));
+        } else {
+            Serial.println(F("SmartConfig failed.  Reboot."));
+            ESP.reset();
+        }
+    } else {
+        WiFi.softAPdisconnect(true);
+        WiFi.begin();
+    }
 
-    WiFiManager wifi_manager;
-
-    wifi_manager.addParameter(&param_hostname);
-    wifi_manager.addParameter(&param_mqtt_server);
-    wifi_manager.addParameter(&param_mqtt_port);
-    wifi_manager.addParameter(&param_mqtt_username);
-    wifi_manager.addParameter(&param_mqtt_password);
-    wifi_manager.addParameter(&param_hass_topic);
-    wifi_manager.addParameter(&param_password);
-
-    wifi_manager.startConfigPortal("Rolek");
-
-    hostname = param_hostname.getValue();
-    mqtt.host = param_mqtt_server.getValue();
-    mqtt.port = String(param_mqtt_port.getValue()).toInt();
-    mqtt.username = param_mqtt_username.getValue();
-    mqtt.password = param_mqtt_password.getValue();
-    hass_autodiscovery_topic = param_hass_topic.getValue();
-    password = param_password.getValue();
-    syslog.server = param_syslog_server.getValue();
-
-    network_config::save();
+    led_blinker.set_pattern(0b10);
 }
 
 void setup() {
@@ -240,25 +202,26 @@ void setup() {
 
     remote.init();
 
+    setup_wifi();
+
     Serial.println(F("Initializing file system..."));
     LittleFS.begin();
 
-    Serial.println(F("Load configuration..."));
-    network_config::load();
-    setup_shutters();
-
-    serializeJsonPretty(network_config::get(), Serial);
-
-    Serial.println("\nPress and hold button now to enter WiFi setup.");
-    delay(3000);
-    if (flash_button) {
-        config_mode();
+    {
+        Serial.println(F("Load network configuration..."));
+        PicoUtils::JsonConfigFile<StaticJsonDocument<1024>> config(LittleFS, F("/network.json"));
+        hostname = config["hostname"] | "rolek";
+        hass_autodiscovery_topic = config["hass_autodiscovery_topic"] | "homeassistant";
+        mqtt.host = config["mqtt"]["host"] | "";
+        mqtt.port = config["mqtt"]["port"] | 1883;
+        mqtt.username = config["mqtt"]["username"] | "mqtt";
+        mqtt.password = config["mqtt"]["password"] | "mosquitto";
+        password = config["password"] | "";
+        syslog.server = config["syslog"] | "";
     }
 
-    WiFi.hostname(hostname);
-    WiFi.setAutoReconnect(true);
-    WiFi.softAPdisconnect(true);
-    WiFi.begin();
+    setup_shutters();
+
     MDNS.begin(hostname);
 
     Serial.println(F("Setting up endpoints..."));
