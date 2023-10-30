@@ -29,14 +29,14 @@ Remote remote;
 #else
 #warning "Using default config, create customize.h to customize."
 
-std::map<std::string, Shutter> shutters = {
+std::map<String, Shutter> shutters = {
     {"Living room", 1},
     {"Kitchen", 2},
     {"Bedroom", 3},
     {"Bathroom", 4},
 };
 
-const std::map<std::string, std::vector<std::string>> groups = {
+const std::map<String, std::vector<String>> groups = {
     {"Downstairs", {"Living room", "Kitchen"}},
     {"Upstairs", {"Bedroom", "Bathroom"}},
 };
@@ -48,8 +48,8 @@ PicoUtils::PinOutput wifi_led(D4, true);
 PicoUtils::Blink led_blinker(wifi_led, 0, 91);
 PicoUtils::RestfulServer<ESP8266WebServer> server;
 
-bool process(const std::string & name, const command_t command) {
-    if (name.empty()) {
+bool process(const String & name, const command_t command) {
+    if (name.isEmpty()) {
         remote.execute(0, command);
 
         // notify individual shutters manually about the globally executed command

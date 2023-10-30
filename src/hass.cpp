@@ -13,7 +13,7 @@
 extern PicoMQTT::Client mqtt;
 extern PicoSyslog::Logger syslog;
 extern String hass_autodiscovery_topic;
-extern std::map<std::string, Shutter> shutters;
+extern std::map<String, Shutter> shutters;
 
 namespace {
 
@@ -21,6 +21,11 @@ const String board_id(ESP.getChipId(), HEX);
 
 std::list<PicoUtils::Watch<double>> position_watches;
 std::list<PicoUtils::Watch<command_t>> state_watches;
+
+String get_first_word(const String & s) {
+    auto space_idx = s.indexOf(' ');
+    return space_idx <= 0 ? s : s.substring(0, space_idx);
+}
 
 }
 
@@ -69,7 +74,6 @@ void autodiscover() {
 
     const String board_unique_id = "rolek-" + board_id;
 
-
     for (const auto & kv : shutters) {
         const auto unique_id = board_unique_id + "-" + String(kv.second.index);
         const auto name = kv.first;
@@ -86,7 +90,7 @@ void autodiscover() {
 
         auto device = json["device"];
         device["name"] = "Roleta " + name;
-        device["suggested_area"] = name.substr(0, name.find(' '));
+        device["suggested_area"] = get_first_word(name);
         device["identifiers"][0] = unique_id;
         device["via_device"] = board_unique_id;
 
