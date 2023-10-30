@@ -17,31 +17,15 @@
 
 String hostname;
 String hass_autodiscovery_topic;
-String ota_password;
+String password;
 
 PicoMQTT::Client mqtt;
 PicoSyslog::Logger syslog("rolek");
 
 Remote remote;
 
-#if __has_include("customize.h")
-#include "customize.h"
-#else
-#warning "Using default config, create customize.h to customize."
-
-std::map<String, Shutter> shutters = {
-    {"Living room", 1},
-    {"Kitchen", 2},
-    {"Bedroom", 3},
-    {"Bathroom", 4},
-};
-
-const std::map<String, std::vector<String>> groups = {
-    {"Downstairs", {"Living room", "Kitchen"}},
-    {"Upstairs", {"Bedroom", "Bathroom"}},
-};
-
-#endif
+std::map<String, Shutter> shutters;
+std::map<String, std::vector<String>> groups;
 
 PicoUtils::PinInput flash_button(0, true);
 PicoUtils::PinOutput wifi_led(D4, true);
@@ -124,6 +108,37 @@ void setup_endpoints() {
     server.serveStatic("/", LittleFS, "/ui/");
 }
 
+void setup_shutters() {
+    PicoUtils::JsonConfigFile<StaticJsonDocument<1024>> config(LittleFS, "/shutters.json");
+
+    for (const auto & kv : config.as<JsonObject>()) {
+        const String key = kv.key().c_str();
+        if (kv.value().is<unsigned int>()) {
+            const unsigned int index = kv.value().as<unsigned int>();
+            if (index) {
+                shutters.emplace(key, index);
+            }
+        }
+
+        if (kv.value().is<JsonObject>()) {
+            const JsonObject obj = kv.value().as<JsonObject>();
+            const unsigned int index = obj["index"] | 0;
+            const double open_time = obj["open_time"] | obj["time"] | 30;
+            const double close_time = obj["close_time"] | obj["time"] | 30;
+            if (index) {
+                shutters.try_emplace(key, index, 1000 * open_time, 1000 * close_time);
+            }
+        }
+
+        if (kv.value().is<JsonArray>()) {
+            auto & group = groups[key];
+            for (const auto & element : kv.value().as<JsonArray>()) {
+                group.push_back(element.as<String>());
+            }
+        }
+    }
+}
+
 namespace network_config {
 
 const char CONFIG_PATH[] PROGMEM = "/network.json";
@@ -132,12 +147,12 @@ void load() {
     PicoUtils::JsonConfigFile<StaticJsonDocument<256>> config(LittleFS, FPSTR(CONFIG_PATH));
     hostname = config["hostname"] | "rolek";
     hass_autodiscovery_topic = config["hass_autodiscovery_topic"] | "homeassistant";
-    mqtt.host = config["mqtt"]["host"] | "192.168.1.100";
+    mqtt.host = config["mqtt"]["host"] | "";
     mqtt.port = config["mqtt"]["port"] | 1883;
     mqtt.username = config["mqtt"]["username"] | "mqtt";
     mqtt.password = config["mqtt"]["password"] | "mosquitto";
-    ota_password = config["ota_password"] | "";
-    syslog.server = config["syslog"] | "192.168.1.100";
+    password = config["password"] | "";
+    syslog.server = config["syslog"] | "";
 }
 
 DynamicJsonDocument get() {
@@ -148,7 +163,7 @@ DynamicJsonDocument get() {
     config["mqtt"]["port"] = mqtt.port;
     config["mqtt"]["username"] = mqtt.username;
     config["mqtt"]["password"] = mqtt.password;
-    config["ota_password"] = ota_password;
+    config["password"] = password;
     config["syslog"] = syslog.server;
     return config;
 }
@@ -173,7 +188,7 @@ void config_mode() {
     WiFiManagerParameter param_mqtt_password("mqtt_pass", "MQTT Password", mqtt.password.c_str(), 64);
     WiFiManagerParameter param_hass_topic("hass_autodiscovery_topic", "Home Assistant autodiscovery topic",
                                           hass_autodiscovery_topic.c_str(), 64);
-    WiFiManagerParameter param_ota_password("ota_password", "OTA Password", ota_password.c_str(), 64);
+    WiFiManagerParameter param_password("password", "Password", password.c_str(), 64);
     WiFiManagerParameter param_syslog_server("syslog", "Syslog server", syslog.server.c_str(), 64);
 
     WiFiManager wifi_manager;
@@ -184,7 +199,7 @@ void config_mode() {
     wifi_manager.addParameter(&param_mqtt_username);
     wifi_manager.addParameter(&param_mqtt_password);
     wifi_manager.addParameter(&param_hass_topic);
-    wifi_manager.addParameter(&param_ota_password);
+    wifi_manager.addParameter(&param_password);
 
     wifi_manager.startConfigPortal("Rolek");
 
@@ -194,7 +209,7 @@ void config_mode() {
     mqtt.username = param_mqtt_username.getValue();
     mqtt.password = param_mqtt_password.getValue();
     hass_autodiscovery_topic = param_hass_topic.getValue();
-    ota_password = param_ota_password.getValue();
+    password = param_password.getValue();
     syslog.server = param_syslog_server.getValue();
 
     network_config::save();
@@ -230,6 +245,8 @@ void setup() {
 
     Serial.println(F("Load configuration..."));
     network_config::load();
+    setup_shutters();
+
     serializeJsonPretty(network_config::get(), Serial);
 
     Serial.println("\nPress and hold button now to enter WiFi setup.");
@@ -259,8 +276,8 @@ void setup() {
 
     Serial.println(F("Starting up ArduinoOTA..."));
     ArduinoOTA.setHostname(hostname.c_str());
-    if (ota_password.length()) {
-        ArduinoOTA.setPassword(ota_password.c_str());
+    if (password.length()) {
+        ArduinoOTA.setPassword(password.c_str());
     }
     ArduinoOTA.begin();
 
