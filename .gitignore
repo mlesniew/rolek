@@ -2,4 +2,5 @@
 .pioenvs/
 .piolibdeps/
 .pio/
-src/customize.h
+data/network.json
+data/shutters.json

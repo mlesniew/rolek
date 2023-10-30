@@ -1,0 +1,12 @@
+{
+    "hostname": "rolek",
+    "hass_autodiscovery_topic": "homeassistant",
+    "mqtt": {
+        "host": "",
+        "port": 1883,
+        "username": "",
+        "password": ""
+    },
+    "passord": "",
+    "syslog": ""
+}

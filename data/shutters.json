@@ -1,0 +1,15 @@
+{
+    "Living room": 1,
+    "Kitchen": {
+        "index": 2,
+        "time": 20
+    },
+    "Bathroom": {
+        "index": 3,
+        "open_time": 30,
+        "close_time": 25
+    },
+    "Bedroom": 4,
+    "Downstairs": ["Living room", "Kitchen"],
+    "Upstairs": ["Bathroom", "Bedroom"]
+}
