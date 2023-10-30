@@ -43,8 +43,8 @@ const std::map<std::string, std::vector<std::string>> groups = {
 
 #endif
 
-PicoUtils::PinInput<0, true> flash_button;
-PicoUtils::PinOutput<D4, true> wifi_led;
+PicoUtils::PinInput flash_button(0, true);
+PicoUtils::PinOutput wifi_led(D4, true);
 PicoUtils::Blink led_blinker(wifi_led, 0, 91);
 PicoUtils::RestfulServer<ESP8266WebServer> server;
 

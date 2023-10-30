@@ -175,8 +175,8 @@ void init() {
         autodiscover();
 
         // notify about the state of blinds
-        for (const auto & watch: position_watches) watch.fire();
-        for (const auto & watch: state_watches) watch.fire();
+        for (auto & watch: position_watches) watch.fire();
+        for (auto & watch: state_watches) watch.fire();
 
         // notify about availability
         mqtt.publish(mqtt.will.topic, "online", 0, true);
@@ -196,8 +196,8 @@ void init() {
 }
 
 void tick() {
-    for (const auto & watch: position_watches) watch.tick();
-    for (const auto & watch: state_watches) watch.tick();
+    for (auto & watch: position_watches) watch.tick();
+    for (auto & watch: state_watches) watch.tick();
 }
 
 }
