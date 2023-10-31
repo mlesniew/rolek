@@ -14,6 +14,7 @@ extern PicoMQTT::Client mqtt;
 extern PicoSyslog::Logger syslog;
 extern String hass_autodiscovery_topic;
 extern std::map<String, Shutter> shutters;
+extern String hostname;
 
 namespace {
 
@@ -72,24 +73,27 @@ void autodiscover() {
 
     syslog.println("Home Assistant autodiscovery messages...");
 
-    const String board_unique_id = "rolek-" + board_id;
+    const String board_unique_id = "rolek_" + board_id;
+    String friendly_hostname = hostname;
+    hostname[0] = hostname[0] ^ ' ';
 
     for (const auto & kv : shutters) {
-        const auto unique_id = board_unique_id + "-" + String(kv.second.index);
+        const auto unique_id = board_unique_id + "_" + String(kv.second.index);
         const auto name = kv.first;
         const String topic = hass_autodiscovery_topic + "/cover/" + unique_id + "/config";
 
         StaticJsonDocument<1024> json;
         json["unique_id"] = unique_id;
+        json["name"] = friendly_hostname + " " + name;
+        json["object_id"] = hostname + "_" + name;
         json["command_topic"] = "rolek/" + board_id + "/" + String(kv.second.index) + "/command";
         json["state_topic"] = "rolek/" + board_id + "/" + String(kv.second.index) + "/state";
         json["position_topic"] = "rolek/" + board_id + "/" + String(kv.second.index) + "/position";
         json["availability_topic"] = "rolek/" + board_id + "/availability";
         json["device_class"] = "shutter";
-        json["name"] = "Roleta " + name;
 
         auto device = json["device"];
-        device["name"] = "Roleta " + name;
+        device["name"] = "Rolek controller " + name;
         device["suggested_area"] = get_first_word(name);
         device["identifiers"][0] = unique_id;
         device["via_device"] = board_unique_id;
@@ -107,27 +111,27 @@ void autodiscover() {
     };
 
     static const Button buttons[] = {
-        {"reset-remote", "Reset remote", "RESET", "mdi:lightning-bolt" },
+        {"reset_remote", "Reset remote", "RESET", "mdi:lightning-bolt" },
         {"up", "Open all shutters", "UP", "mdi:arrow-up-bold" },
         {"down", "Close all shutters", "DOWN", "mdi:arrow-down-bold" },
         {"stop", "Stop all shutters", "STOP", "mdi:stop"},
     };
 
     for (const auto & button : buttons) {
-        const String unique_id = board_unique_id + "-" + button.name;
+        const String unique_id = board_unique_id + "_" + button.name;
         const String topic = hass_autodiscovery_topic + "/button/" + unique_id + "/config";
 
         StaticJsonDocument<1024> json;
         json["unique_id"] = unique_id;
-        json["object_id"] = String("rolek-") + button.name;
+        json["object_id"] = hostname + "_" + button.name;
         json["command_topic"] = "rolek/" + board_id + "/command";
         json["availability_topic"] = "rolek/" + board_id + "/availability";
-        json["name"] = button.friendly_name;
+        json["name"] = friendly_hostname + " " + button.friendly_name;
         json["payload_press"] = button.payload;
         json["icon"] = button.icon;
 
         auto device = json["device"];
-        device["name"] = "Rolek";
+        device["name"] = hostname;
         device["manufacturer"] = "mlesniew";
         device["sw_version"] = __DATE__ " " __TIME__;
         device["configuration_url"] = "http://" + WiFi.localIP().toString();
