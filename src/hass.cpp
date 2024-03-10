@@ -82,7 +82,7 @@ void autodiscover() {
         const auto name = kv.first;
         const String topic = hass_autodiscovery_topic + "/cover/" + unique_id + "/config";
 
-        StaticJsonDocument<1024> json;
+        JsonDocument json;
         json["unique_id"] = unique_id;
         json["name"] = friendly_hostname + " " + name;
         json["object_id"] = hostname + "_" + name;
@@ -121,7 +121,7 @@ void autodiscover() {
         const String unique_id = board_unique_id + "_" + button.name;
         const String topic = hass_autodiscovery_topic + "/button/" + unique_id + "/config";
 
-        StaticJsonDocument<1024> json;
+        JsonDocument json;
         json["unique_id"] = unique_id;
         json["object_id"] = hostname + "_" + button.name;
         json["command_topic"] = "rolek/" + board_id + "/command";

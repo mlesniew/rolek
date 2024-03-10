@@ -86,7 +86,7 @@ void setup_endpoints() {
     });
 
     server.on("/shutters", [] {
-        StaticJsonDocument<1024> json;
+        JsonDocument json;
         auto blinds_array = json["shutters"].to<JsonArray>();
         for (const auto & kv : shutters) {
             blinds_array.add(kv.first);
@@ -109,9 +109,9 @@ void setup_endpoints() {
 }
 
 void setup_shutters() {
-    PicoUtils::JsonConfigFile<StaticJsonDocument<1024>> config(LittleFS, "/shutters.json");
+    PicoUtils::JsonConfigFile<JsonDocument> config(LittleFS, "/shutters.json");
 
-    for (const auto & kv : config.as<JsonObject>()) {
+    for (const auto & kv : config.as<JsonObjectConst>()) {
         const String key = kv.key().c_str();
         if (kv.value().is<unsigned int>()) {
             const unsigned int index = kv.value().as<unsigned int>();
@@ -120,8 +120,8 @@ void setup_shutters() {
             }
         }
 
-        if (kv.value().is<JsonObject>()) {
-            const JsonObject obj = kv.value().as<JsonObject>();
+        if (kv.value().is<JsonObjectConst>()) {
+            const JsonObjectConst obj = kv.value().as<JsonObjectConst>();
             const unsigned int index = obj["index"] | 0;
             const double open_time = obj["open_time"] | obj["time"] | 30;
             const double close_time = obj["close_time"] | obj["time"] | 30;
@@ -130,9 +130,9 @@ void setup_shutters() {
             }
         }
 
-        if (kv.value().is<JsonArray>()) {
+        if (kv.value().is<JsonArrayConst>()) {
             auto & group = groups[key];
-            for (const auto & element : kv.value().as<JsonArray>()) {
+            for (const auto & element : kv.value().as<JsonArrayConst>()) {
                 group.push_back(element.as<String>());
             }
         }
@@ -165,7 +165,7 @@ void setup() {
     WiFi.hostname(hostname);
     wifi_control.init(flash_button);
 
-    wifi_control.get_connectivity_level = []{
+    wifi_control.get_connectivity_level = [] {
         return mqtt.connected() ? 2 : 1;
     };
 
@@ -174,7 +174,7 @@ void setup() {
 
     {
         Serial.println(F("Load network configuration..."));
-        PicoUtils::JsonConfigFile<StaticJsonDocument<1024>> config(LittleFS, F("/network.json"));
+        PicoUtils::JsonConfigFile<JsonDocument> config(LittleFS, F("/network.json"));
         hostname = config["hostname"] | "rolek";
         hass_autodiscovery_topic = config["hass_autodiscovery_topic"] | "homeassistant";
         mqtt.host = config["mqtt"]["host"] | "";
