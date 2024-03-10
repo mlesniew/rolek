@@ -28,7 +28,8 @@ std::map<String, std::vector<String>> groups;
 
 PicoUtils::PinInput flash_button(0, true);
 PicoUtils::PinOutput wifi_led(D4, true);
-PicoUtils::Blink led_blinker(wifi_led, 0, 91);
+PicoUtils::WiFiControlSmartConfig wifi_control(wifi_led);
+
 PicoUtils::RestfulServer<ESP8266WebServer> server;
 
 bool process(const String & name, const command_t command) {
@@ -138,49 +139,8 @@ void setup_shutters() {
     }
 }
 
-
-void setup_wifi() {
-    WiFi.hostname(hostname);
-    WiFi.setAutoReconnect(true);
-
-    Serial.println(F("Press button now to enter SmartConfig."));
-    led_blinker.set_pattern(1);
-    const PicoUtils::Stopwatch stopwatch;
-    bool smart_config = false;
-    {
-        while (!smart_config && (stopwatch.elapsed_millis() < 3 * 1000)) {
-            smart_config = flash_button;
-            delay(100);
-        }
-    }
-
-    if (smart_config) {
-        led_blinker.set_pattern(0b100100100 << 9);
-
-        Serial.println(F("Entering SmartConfig mode."));
-        WiFi.beginSmartConfig();
-        while (!WiFi.smartConfigDone() && (stopwatch.elapsed_millis() < 5 * 60 * 1000)) {
-            delay(100);
-        }
-
-        if (WiFi.smartConfigDone()) {
-            Serial.println(F("SmartConfig success."));
-        } else {
-            Serial.println(F("SmartConfig failed.  Reboot."));
-            ESP.reset();
-        }
-    } else {
-        WiFi.softAPdisconnect(true);
-        WiFi.begin();
-    }
-
-    led_blinker.set_pattern(0b10);
-}
-
 void setup() {
     wifi_led.init();
-    led_blinker.set_pattern(0b10);
-    PicoUtils::BackgroundBlinker bb(led_blinker);
     flash_button.init();
 
     Serial.begin(115200);
@@ -202,7 +162,12 @@ void setup() {
 
     remote.init();
 
-    setup_wifi();
+    WiFi.hostname(hostname);
+    wifi_control.init(flash_button);
+
+    wifi_control.get_connectivity_level = []{
+        return mqtt.connected() ? 2 : 1;
+    };
 
     Serial.println(F("Initializing file system..."));
     LittleFS.begin();
@@ -245,26 +210,13 @@ void setup() {
     Serial.println(F("Setup complete."));
 }
 
-void update_status_led() {
-    if (WiFi.status() == WL_CONNECTED) {
-        if (mqtt.connected()) {
-            led_blinker.set_pattern(uint64_t(0b101) << 60);
-        } else {
-            led_blinker.set_pattern(uint64_t(0b1) << 60);
-        }
-    } else {
-        led_blinker.set_pattern(0b1100);
-    }
-    led_blinker.tick();
-};
-
 void loop() {
     ArduinoOTA.handle();
     for (auto & kv : shutters) {
         kv.second.tick();
     }
-    update_status_led();
     server.handleClient();
     mqtt.loop();
     HomeAssistant::tick();
+    wifi_control.tick();
 }
