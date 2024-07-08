@@ -45,7 +45,7 @@ bool process(const String & name, const command_t command) {
     {
         const auto it = shutters.find(name);
         if (it != shutters.end()) {
-            it->second.execute(command);
+            it->second.process(command);
             return true;
         }
     }
@@ -56,6 +56,34 @@ bool process(const String & name, const command_t command) {
             const auto & group = it->second;
             for (const auto & element : group) {
                 process(element, command);
+            }
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool set_position(const String & name, const double position) {
+    if (name.isEmpty()) {
+        for (auto & kv : shutters) { kv.second.set_position(position); }
+        return true;
+    }
+
+    {
+        const auto it = shutters.find(name);
+        if (it != shutters.end()) {
+            it->second.set_position(position);
+            return true;
+        }
+    }
+
+    {
+        const auto it = groups.find(name);
+        if (it != groups.end()) {
+            const auto & group = it->second;
+            for (const auto & element : group) {
+                set_position(element, position);
             }
             return true;
         }
@@ -82,6 +110,25 @@ void setup_endpoints() {
         }
 
         const bool success = process(name.c_str(), command_t(direction));
+        server.send(success ? 200 : 404);
+    });
+
+    server.on(UriRegex("/shutters(.*)/set/([0-9]+)"), HTTP_POST, [] {
+        syslog.printf("POST %s\n", server.uri().c_str());
+
+        String name = server.decodedPathArg(0);
+        double position = server.decodedPathArg(1).toInt();
+
+        if (name.length()) {
+            // name must start with slash if present
+            if (name[0] != '/') {
+                server.send(404);
+                return;
+            }
+            name = name.substring(1);
+        }
+
+        const bool success = set_position(name.c_str(), position);
         server.send(success ? 200 : 404);
     });
 

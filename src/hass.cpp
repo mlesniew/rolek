@@ -89,6 +89,7 @@ void autodiscover() {
         json["command_topic"] = "rolek/" + board_id + "/" + String(kv.second.index) + "/command";
         json["state_topic"] = "rolek/" + board_id + "/" + String(kv.second.index) + "/state";
         json["position_topic"] = "rolek/" + board_id + "/" + String(kv.second.index) + "/position";
+        json["set_position_topic"] = "rolek/" + board_id + "/" + String(kv.second.index) + "/position/set";
         json["availability_topic"] = "rolek/" + board_id + "/availability";
         json["device_class"] = "shutter";
 
@@ -164,7 +165,19 @@ void init() {
 
         for (auto & kv : shutters) {
             if (long(kv.second.index) == index) {
-                kv.second.execute(command);
+                kv.second.process(command);
+            }
+        }
+    });
+
+    mqtt.subscribe("rolek/" + board_id + "/+/position/set", [](const char * topic, const String & payload) {
+        const auto index = mqtt.get_topic_element(topic, 2).toInt();
+
+        const double position = payload.toDouble();
+
+        for (auto & kv : shutters) {
+            if (long(kv.second.index) == index) {
+                kv.second.set_position(position);
             }
         }
     });
@@ -205,8 +218,13 @@ void init() {
 }
 
 void tick() {
-    for (auto & watch : position_watches) { watch.tick(); }
-    for (auto & watch : state_watches) { watch.tick(); }
+    static PicoUtils::Stopwatch stopwatch;
+
+    if (stopwatch.elapsed_millis() >= 1000) {
+        for (auto & watch : position_watches) { watch.tick(); }
+        for (auto & watch : state_watches) { watch.tick(); }
+        stopwatch.reset();
+    }
 }
 
 }
