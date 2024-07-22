@@ -209,16 +209,12 @@ void setup() {
 
     remote.init();
 
-    WiFi.hostname(hostname);
-    wifi_control.init(flash_button);
-
     wifi_control.get_connectivity_level = [] {
         return mqtt.connected() ? 2 : 1;
     };
 
     Serial.println(F("Initializing file system..."));
     LittleFS.begin();
-
     {
         Serial.println(F("Load network configuration..."));
         PicoUtils::JsonConfigFile<JsonDocument> config(LittleFS, F("/network.json"));
@@ -231,6 +227,9 @@ void setup() {
         password = config["password"] | "";
         syslog.server = config["syslog"] | "";
     }
+
+    WiFi.hostname(hostname);
+    wifi_control.init(flash_button);
 
     setup_shutters();
 
