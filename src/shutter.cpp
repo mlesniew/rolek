@@ -21,9 +21,20 @@ void Shutter::set_position(double new_position) {
         syslog.printf("Shutter %i position unknown, %sing first...\n", index, desired_position > 50 ? "open" : "clos");
         execute(desired_position > 50 ? COMMAND_UP : COMMAND_DOWN);
     } else {
-        syslog.printf("Shutter %i %sing to reach position %i.\n", index, desired_position > position ? "open" : "clos", int(desired_position));
+        syslog.printf("Shutter %i %sing to reach position %i.\n", index, desired_position > position ? "open" : "clos",
+                      int(desired_position));
         execute(desired_position > position ? COMMAND_UP : COMMAND_DOWN);
     }
+}
+
+void Shutter::sync() {
+    double new_desired_position = std::isnan(desired_position);
+    process(COMMAND_STOP);
+    if (std::isnan(new_desired_position)) {
+        new_desired_position = std::isnan(position) ? 50.0 : double(position);
+    }
+    position = std::numeric_limits<double>::quiet_NaN();
+    set_position(new_desired_position);
 }
 
 void Shutter::process(command_t command) {

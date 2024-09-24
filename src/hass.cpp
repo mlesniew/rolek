@@ -16,6 +16,9 @@ extern String hass_autodiscovery_topic;
 extern std::map<String, Shutter> shutters;
 extern String hostname;
 
+bool process(const String & name, const command_t command);
+bool sync();
+
 namespace {
 
 const String board_id(ESP.getChipId(), HEX);
@@ -116,6 +119,7 @@ void autodiscover() {
         {"up", "Open all shutters", "UP", "mdi:arrow-up-bold" },
         {"down", "Close all shutters", "DOWN", "mdi:arrow-down-bold" },
         {"stop", "Stop all shutters", "STOP", "mdi:stop"},
+        {"sync_position", "Sync position", "SYNC", "mdi:cog-sync" },
     };
 
     for (const auto & button : buttons) {
@@ -185,6 +189,17 @@ void init() {
     mqtt.subscribe("rolek/" + board_id + "/command", [](const char * payload) {
         if (strcmp(payload, "RESET") == 0) {
             remote.reset();
+        } else if (strcmp(payload, "SYNC") == 0) {
+            sync();
+        } else if (strcmp(payload, "STOP") == 0) {
+            process("", COMMAND_STOP);
+        } else if (strcmp(payload, "UP") == 0) {
+            process("", COMMAND_UP);
+        } else if (strcmp(payload, "DOWN") == 0) {
+            process("", COMMAND_DOWN);
+        } else {
+            // invalid command
+            return;
         }
     });
 

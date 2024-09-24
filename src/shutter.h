@@ -23,6 +23,7 @@ class Shutter {
         void tick();
 
         void set_position(double position);
+        void sync();
         void process(command_t cmd);
 
         void on_execute(command_t command);

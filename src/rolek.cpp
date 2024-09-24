@@ -92,6 +92,10 @@ bool set_position(const String & name, const double position) {
     return false;
 }
 
+void sync() {
+    for (auto & kv : shutters) { kv.second.sync(); }
+}
+
 void setup_endpoints() {
     server.on(UriRegex("/shutters(.*)/(up|down|stop)"), HTTP_POST, [] {
 
@@ -149,6 +153,11 @@ void setup_endpoints() {
 
     server.on("/reset", [] {
         remote.reset();
+        server.send(200, F("text/plain"), F("OK"));
+    });
+
+    server.on("/sync", [] {
+        sync();
         server.send(200, F("text/plain"), F("OK"));
     });
 
