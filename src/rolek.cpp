@@ -265,6 +265,17 @@ void setup() {
     Serial.println(F("Setup complete."));
 }
 
+void healthcheck() {
+    static PicoUtils::Stopwatch last_healthy;
+
+    if (WiFi.status() == WL_CONNECTED) {
+        last_healthy.reset();
+    } else if (last_healthy.elapsed_millis() >= 15 * 60 * 1000) {
+        syslog.println(F("Healthcheck failing for too long, resetting..."));
+        ESP.reset();
+    }
+};
+
 void loop() {
     ArduinoOTA.handle();
     for (auto & kv : shutters) {
