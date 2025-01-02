@@ -9,21 +9,23 @@ extern PicoSyslog::Logger syslog;
 
 void Shutter::set_position(double new_position) {
     if (new_position >= 100) {
-        desired_position = 100;
+        desired_position = std::numeric_limits<double>::quiet_NaN();
+        execute(COMMAND_UP);
     } else if (new_position <= 0) {
-        desired_position = 0;
+        desired_position = std::numeric_limits<double>::quiet_NaN();
+        execute(COMMAND_DOWN);
     } else {
         desired_position = new_position;
-    }
 
-    if (std::isnan(position)) {
-        // position currently unknown
-        syslog.printf("Shutter %i position unknown, %sing first...\n", index, desired_position > 50 ? "open" : "clos");
-        execute(desired_position > 50 ? COMMAND_UP : COMMAND_DOWN);
-    } else {
-        syslog.printf("Shutter %i %sing to reach position %i.\n", index, desired_position > position ? "open" : "clos",
-                      int(desired_position));
-        execute(desired_position > position ? COMMAND_UP : COMMAND_DOWN);
+        if (std::isnan(position)) {
+            // position currently unknown
+            syslog.printf("Shutter %i position unknown, %sing first...\n", index, desired_position > 50 ? "open" : "clos");
+            execute(desired_position > 50 ? COMMAND_UP : COMMAND_DOWN);
+        } else {
+            syslog.printf("Shutter %i %sing to reach position %i.\n", index, desired_position > position ? "open" : "clos",
+                          int(desired_position));
+            execute(desired_position > position ? COMMAND_UP : COMMAND_DOWN);
+        }
     }
 }
 
@@ -77,17 +79,17 @@ void Shutter::update_position_and_state() {
     }
 
     if (std::isnan(position)) {
-        if (elapsed_millis > total_time_ms) {
+        if (elapsed_millis >= total_time_ms) {
             position = 50 + 50 * direction;
             state = COMMAND_STOP;
         }
     } else {
         position = position + direction * (double(elapsed_millis) / double(open_time_ms) * 100);
-        if (position > 100) {
+        if (position >= 100) {
             position = 100;
             state = COMMAND_STOP;
         }
-        if (position < 0) {
+        if (position <= 0) {
             position = 0;
             state = COMMAND_STOP;
         }
