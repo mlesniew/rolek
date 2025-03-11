@@ -1,75 +1,161 @@
 # Rolek
 
-[![Build Status](https://travis-ci.org/mlesniew/rolek.svg?branch=master)](https://travis-ci.org/mlesniew/rolek)
+![Build Status](https://img.shields.io/github/actions/workflow/status/mlesniew/rolek/ci.yml)
 ![License](https://img.shields.io/github/license/mlesniew/rolek)
 
-Control your electric window blinds through WiFi
+Control your window roller shutters over WiFi.
 
-Rolek is a simple electronic project for controlling electric window blinds through WiFi using a simple web page.
-
-
-## How
-
-The idea is simple.  The blinds must be remote controlled already using a 433 MHz remote.  The original remote needs
-to be sacrificed -- it needs to get disassembled and wires need to get soldered to its buttons.  These wires can then
-be connected to the Wemos chip.  This way we can pretend to the remote that the buttons are pressed and make it send
-the proper code to the blinds.
+Rolek is a small ESP8266-based project that lets you control electric roller shutters through a web page.
 
 
-## Why
+## How it works
 
-The main reason to use the approach with the remote was that it's the easiest.  Also, I had a broken remote already --
-its display broke when I dropped it, but everything else worked fine.  Instead of throwing it away, I decided to use
-it for this project.
-
-
-## Design
-
-### The original remote
-
-In my case the original remote has 6 buttons and can control up to 15 blinds: UP, DOWN, LEFT, RIGHT, STOP and PROGRAM.
-LEFT and RIGHT are used to select the blinds (a number indicating which one is selected is displayed on a LCD).  UP,
-DOWN and STOP control the currently selected blinds.  The blinds go all the way up or all the way down when the buttons
-are pressed unless STOP is pressed to stop them somewhere in the middle.  The PROGRAM button is only used to pair the
-remote with the blinds.
-
-When the battery gets removed and reinserted, the remote goes back to blind number 1.  It's also possible to go to
-number zero which means that all blinds are controlled at once.
-
-### Electronics
-
-I decided to only connect the 4 direction buttons to the Wemos.  The buttons on the remote are probably connected to
-some pin in the remote's main chip through a pull up resistor.  Using a multimeter I figured out that pressing the
-buttons causes the voltage on their pins to drop to 0 V.  To simulate button presses artificially I connected the pin
-of the buttons to the ground through a NPN transistor, which worked as a switch.  Each transistor's base is connected
-to one of the Wemos GPIO through a resistor.
-
-The remote is normally powered by a small 3 V battery.  That's just perfect, because it means that it can be powered
-directly from the 3 V pin of the Wemos.  To be able to reset the remote from the Wemos easily,  the ground (battery -)
-of the remote is connected to the Wemos ground pin through another NPN transistor, just like the buttons.
-
-### Software
-
-Upon startup the Wemos first resets the remote by cutting its power for a few seconds.  This brings the remote back
-to a known state.  Next, it connects to WiFi and sets up a simple web server, which can be used to control the blinds.
-The two main endpoints are `/up` and `/down`.  Both accept two parameters in the url:
- * `mask` -- a bitmask, which specifies which blinds should get closed or opened, e.g. 6 means blinds 1 and 2, if not
-   specified, it defaults to 1 (which means blind number 0 == all blinds).
- * `count` -- specifies the number of times the up or down button press should be repeated, defaults to 1 (useful in
-   case of possible interference
-
-These endpoints can be used directly, e.g. using `curl`, but don't need to be.  The page served by the web server
-provides a simple easy to use and human friendly interface.  The labels for the buttons on the page and their
-corresponding masks are taken from `config.json`, which can be generated using the `config.py` script.
+The idea is simple: take an existing 433 MHz remote, open it up, and solder wires to its buttons. The ESP8266 then
+"presses" the buttons by shorting them electronically, making the remote send signals to the shutters—just like a
+real button press.
 
 
-## Other possible approaches
+### Why do it this way?
 
-In theory, a 433 MHz transmitter could be used to directly send the right code to the blinds.  This would be much
-cheaper, as the original remote wouldn't be needed.  However, modern blinds use a proprietary rolling code algorithm.
-Every time a button is pressed on the remote, the code sent out is different.  To use the approach with the 433 MHz
-transmitter, the code generation would have to be reverse engineered or cracked somehow.
+This is the easiest way to get WiFi control without messing with the shutters’ internals. Also, I had a broken
+remote (the display cracked when I dropped it), but it still worked otherwise, so I decided to reuse it instead of
+throwing it away.
 
-Another way to remotely control blinds is to connect Wemos chips with relays directly to the blinds motors.  This would
-require one Wemos per window.  Also, this way it wouldn't be possible to use any additional original remotes anymore.
 
+## How it's built
+
+### The remote
+
+The remote I used has six buttons and can control up to 15 shutters:
+  * `UP`, `DOWN`, `STOP` -- moves the currently selected shutter
+  * `LEFT`, `RIGHT` -- selects which shutter to control (shown on an LCD screen)
+  * `PROGRAM` -- used only for pairing
+
+When the battery is removed and reinserted, the remote resets to shutter #1. There's also a special "shutter 0" mode
+that controls all shutters at once.
+
+
+### The electronics
+
+I wired up the movement buttons to the ESP8266.  The remote’s buttons work by pulling their pins low (0V) when pressed.
+To fake a button press, I connected each button’s pin to ground through an NPN transistor, which acts as a switch. The
+ESP8266 controls these switches via its GPIO pins.
+
+The remote runs on a small 3V battery, which is perfect because it can be powered directly from the ESP8266’s 3V pin.
+To make resetting easier, I also wired the remote’s ground connection through a transistor, allowing the ESP8266 to
+briefly cut the remote's power when needed.
+
+
+### The software
+
+When powered on, the ESP8266:
+  * Resets the remote by cutting its power for a few seconds, so it starts in a known state.
+  * Connects to WiFi and starts a web server.
+
+The web server provides an interface to control the shutters via a simple Web UI and via REST API endpoints (see below).
+
+#### Setting a Desired Shutter Position
+
+Since neither the remote nor the ESP8266 knows the exact position of the shutters, it has to estimate it.  This works because
+the time needed to fully open or close a shutter is fairly consistent.
+
+Here's how it works:
+  * When the ESP8266 starts, it has no idea what position the shutters are in.
+  * If a shutter is moved up or down for its full duration without being interrupted, the ESP8266 assumes it is now fully
+    open or closed.
+  * As subsequent commands are issued, the estimated position is updated based on the movement duration.
+
+With the approach above, the ESP8266 can stop a shutter at a specific position, by calculating the correct timing and
+sending a stop command.
+
+Since position tracking isn't always reliable (e.g., if a remote is used manually), a `/sync` endpoint is available.
+When called, it:
+  * Fully opens or closes each shutter.
+  * Waits the necessary time to ensure movement has stopped.
+  * Moves the shutter again and stops it after a calculated delay to set it at a known position.
+
+
+### REST API Endpoints
+
+  * `POST /shutters/up` - Opens all shutters.
+  * `POST /shutters/down` - Closes all shutters.
+  * `POST /shutters/stop` - Stops all shutters.
+  * `POST /shutters/<name>/up` - Opens a specific shutter or group.
+  * `POST /shutters/<name>/down` - Closes a specific shutter or group.
+  * `POST /shutters/<name>/stop` - Stops a specific shutter or group.
+  * `POST /shutters/<name>/set/<position>` - Moves a shutter/group to a specific position (0–100, where 0 = closed, 100 = open).
+  * `POST /sync` - Ensures shutters are at their expected positions.
+  * `POST /reset` - Resets the remote by cutting power.
+
+
+### Home Assistant Integration
+
+Rolek now supports automatic Home Assistant integration via MQTT.  It's enabled automatically when MQTT is confitured in
+`data/network.json`.  Home Assistant should automatically detect all defined shutters and groups.
+
+
+### Syslog Support
+
+By default, logs are printed over serial at 115200 baud.  However, for convenience, logs can also be sent to a syslog server.
+This is enabled by configuring the syslog server’s IP/hostname in `data/network.json`.
+
+The easiest way to run a compatible syslog server is using this Docker image: [mlesniew/syslog](https://hub.docker.com/r/mlesniew/syslog).
+
+
+### Configuration
+
+#### Shutters
+
+Shutter settings are stored in `data/shutters.json`.  The file defines which shutter names and their numbers matching those on the remote:
+
+```
+{
+    "Living room": 1,
+    "Kitchen": 2,
+    "Bedroom": 3,
+    "Bathroom": 4
+}
+```
+
+If needed, additional details can be specified, such as the time required for a shutter to fully open or close. 
+
+```
+{
+    "Living room": 1,
+    "Kitchen": {
+        "index": 2,
+        "time": 20
+    },
+    "Bathroom": {
+        "index": 3,
+        "open_time": 30,
+        "close_time": 25
+    },
+    "Bedroom": 4
+}
+```
+
+Groups can also be defined, allowing multiple shutters to be controlled together:
+
+```
+{
+    "Living room": 1,
+    "Kitchen": 2,
+    "Bedroom": 3,
+    "Bathroom": 4,
+    "Downstairs": ["Living room", "Kitchen"],
+    "Upstairs": ["Bathroom", "Bedroom"]
+}
+```
+
+Groups can reference other groups as long as there are no circular dependencies.
+
+#### Extra configuration
+
+Additional settings can be defined in `data/network.json`:
+
+  * `hostname` – The hostname used for DHCP, mDNS, and syslog.
+  * `mqtt` – MQTT connection details (`host`, `port`, `username`, `password`).
+  * `hass_autodiscovery_topic` – Home Assistant auto-discovery topic (default: `homeassistant`).
+  * `password` – OTA update password.
+  * `syslog` – IP or hostname of a syslog server for remote logging.
