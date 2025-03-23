@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 #include <PicoSyslog.h>
+#include <PicoUtils.h>
 
 #include "remote.h"
 
@@ -10,14 +11,22 @@
 #define PIN_RT D5
 #define PIN_ST D7
 #define PIN_EN D2
+#define PIN_LED D3
 
 #define DEFAULT_INDEX 1
 
 extern PicoSyslog::Logger syslog;
 
-static void init_output(unsigned int pin) {
+namespace {
+
+PicoUtils::PinOutput active_led(D3, true);
+PicoUtils::Blink blink(active_led, 0b10, 10);
+
+void init_output(unsigned int pin) {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, LOW);
+}
+
 }
 
 void Remote::init() {
@@ -32,16 +41,26 @@ void Remote::init() {
 }
 
 void Remote::reset() {
-    syslog.println(F("Resetting remote..."));
-    digitalWrite(PIN_EN, LOW);
-    delay(5000);
-    digitalWrite(PIN_EN, HIGH);
-    delay(1000);
-    current_index = DEFAULT_INDEX;
-    syslog.println(F("Reset complete."));
+    {
+        PicoUtils::BackgroundBlinker bb(blink);
+        blink.set_pattern(0b10);
+
+        syslog.println(F("Resetting remote..."));
+
+        digitalWrite(PIN_EN, LOW);
+        delay(5000);
+        digitalWrite(PIN_EN, HIGH);
+        delay(1000);
+        current_index = DEFAULT_INDEX;
+        syslog.println(F("Reset complete."));
+    }
+
+    blink.set_pattern(0);
+    active_led.set(false);
 }
 
 void Remote::push(button_t button, unsigned long time) {
+
     const char * desc;
     unsigned int pin = 0;
     switch (button) {
@@ -71,10 +90,18 @@ void Remote::push(button_t button, unsigned long time) {
 
     syslog.printf("Pressing %s button (pin %u) for %lu ms.\n", desc, pin, time);
 
-    digitalWrite(pin, HIGH);
-    delay(time);
-    digitalWrite(pin, LOW);
-    delay(time);
+    {
+        PicoUtils::BackgroundBlinker bb(blink);
+        blink.set_pattern(0b1100);
+
+        digitalWrite(pin, HIGH);
+        delay(time);
+        digitalWrite(pin, LOW);
+        delay(time);
+    }
+
+    blink.set_pattern(0);
+    active_led.set(false);
 }
 
 void Remote::navigate_to(unsigned int index) {

@@ -26,8 +26,8 @@ Remote remote;
 std::map<String, Shutter> shutters;
 std::map<String, std::vector<String>> groups;
 
-PicoUtils::PinInput flash_button(0, true);
 PicoUtils::PinOutput wifi_led(D4, true);
+
 PicoUtils::WiFiControlSmartConfig wifi_control(wifi_led);
 
 PicoUtils::RestfulServer<ESP8266WebServer> server;
@@ -197,7 +197,6 @@ void setup_shutters() {
 
 void setup() {
     wifi_led.init();
-    flash_button.init();
 
     Serial.begin(115200);
 
@@ -215,8 +214,6 @@ void setup() {
                      "Rolek " __DATE__ " " __TIME__ "\n"
                      "https://github.com/mlesniew/rolek\n"
                      "\n"));
-
-    remote.init();
 
     wifi_control.get_connectivity_level = [] {
         return mqtt.connected() ? 2 : 1;
@@ -238,8 +235,14 @@ void setup() {
     }
 
     WiFi.hostname(hostname);
-    wifi_control.init(flash_button);
 
+    {
+        PicoUtils::PinInput flash_button(D3, true);
+        flash_button.init();
+        wifi_control.init(flash_button);
+    }
+
+    remote.init();
     setup_shutters();
 
     Serial.println(F("Setting up endpoints..."));
