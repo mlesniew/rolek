@@ -3,23 +3,47 @@
 ![Build Status](https://img.shields.io/github/actions/workflow/status/mlesniew/rolek/ci.yml)
 ![License](https://img.shields.io/github/license/mlesniew/rolek)
 
-Control your window roller shutters over WiFi.
+Rolek is a small ESP8266-based project for controlling electric roller shutters through a web page, REST API
+or Home Assistant.
 
-Rolek is a small ESP8266-based project that lets you control electric roller shutters through a web page.
+## Features
+
+  * Control individual shutters or groups
+  * Track the current position of each shutter
+  * Set specific positions (e.g. 70% open)
+  * Flexible configuration using JSON files
+  * REST API for controlling shutters programatically
+  * Elegant web UI interface built with [Vue.js](https://vuejs.org/)
+  * MQTT integration powered by [PicoMQTT](https://github.com/mlesniew/PicoMQTT)
+  * Remote logging support via [PicoSyslog](https://github.com/mlesniew/PicoSyslog)
+  * [Home Assistant](https://www.home-assistant.io/) integration (over MQTT)
+
+
+## Gallery
+
+![Video](images/rolek.gif)
+
+![Web UI](images/web-ui.png)
+
+![Home Assistant](images/home-assistant.png)
+
+![Electronics](images/electronics.jpg)
+
+[Click here for more pictures on imgur.com](https://imgur.com/a/AItieym)
 
 
 ## How it works
 
-The idea is simple: take an existing 433 MHz remote, open it up, and solder wires to its buttons. The ESP8266 then
-"presses" the buttons by shorting them electronically, making the remote send signals to the shutters—just like a
+The idea is simple: take an original 433 MHz remote, open it up, and solder wires to its buttons.  The ESP8266 then
+"presses" the buttons by shorting them electronically, making the remote send signals to the shutters - just like a
 real button press.
 
 
 ### Why do it this way?
 
-This is the easiest way to get WiFi control without messing with the shutters’ internals. Also, I had a broken
-remote (the display cracked when I dropped it), but it still worked otherwise, so I decided to reuse it instead of
-throwing it away.
+This is the easiest way to get WiFi control without messing with the shutters’ internals.  The remote I had uses a
+rolling code, which is hard to crack.  Also, I had a remote with a broken display.  It still worked otherwise, so
+I decided to reuse it instead of throwing it away.
 
 
 ## How it's built
@@ -45,6 +69,8 @@ The remote runs on a small 3V battery, which is perfect because it can be powere
 To make resetting easier, I also wired the remote’s ground connection through a transistor, allowing the ESP8266 to
 briefly cut the remote's power when needed.
 
+![Schema](images/schema.png)
+
 
 ### The software
 
@@ -52,7 +78,19 @@ When powered on, the ESP8266:
   * Resets the remote by cutting its power for a few seconds, so it starts in a known state.
   * Connects to WiFi and starts a web server.
 
-The web server provides an interface to control the shutters via a simple Web UI and via REST API endpoints (see below).
+The web server provides an interface to control the shutters via a simple Web UI and via REST API endpoints:
+  * `POST /shutters/up` - Opens all shutters.
+  * `POST /shutters/down` - Closes all shutters.
+  * `POST /shutters/stop` - Stops all shutters.
+  * `POST /shutters/<name>/up` - Opens a specific shutter or group.
+  * `POST /shutters/<name>/down` - Closes a specific shutter or group.
+  * `POST /shutters/<name>/stop` - Stops a specific shutter or group.
+  * `POST /shutters/<name>/set/<position>` - Moves a shutter/group to a specific position (0–100, where 0 = closed, 100 = open).
+  * `POST /sync` - Ensures shutters are at their expected positions.
+  * `POST /reset` - Resets the remote by cutting power.
+
+<details>
+<summary>Setting a Desired Shutter Position</summary>
 
 #### Setting a Desired Shutter Position
 
@@ -74,33 +112,12 @@ When called, it:
   * Waits the necessary time to ensure movement has stopped.
   * Moves the shutter again and stops it after a calculated delay to set it at a known position.
 
-
-### REST API Endpoints
-
-  * `POST /shutters/up` - Opens all shutters.
-  * `POST /shutters/down` - Closes all shutters.
-  * `POST /shutters/stop` - Stops all shutters.
-  * `POST /shutters/<name>/up` - Opens a specific shutter or group.
-  * `POST /shutters/<name>/down` - Closes a specific shutter or group.
-  * `POST /shutters/<name>/stop` - Stops a specific shutter or group.
-  * `POST /shutters/<name>/set/<position>` - Moves a shutter/group to a specific position (0–100, where 0 = closed, 100 = open).
-  * `POST /sync` - Ensures shutters are at their expected positions.
-  * `POST /reset` - Resets the remote by cutting power.
+</details>
 
 
-### Home Assistant Integration
+<details>
 
-Rolek now supports automatic Home Assistant integration via MQTT.  It's enabled automatically when MQTT is confitured in
-`data/network.json`.  Home Assistant should automatically detect all defined shutters and groups.
-
-
-### Syslog Support
-
-By default, logs are printed over serial at 115200 baud.  However, for convenience, logs can also be sent to a syslog server.
-This is enabled by configuring the syslog server’s IP/hostname in `data/network.json`.
-
-The easiest way to run a compatible syslog server is using this Docker image: [mlesniew/syslog](https://hub.docker.com/r/mlesniew/syslog).
-
+<summary>Software configuration</summary>
 
 ### Configuration
 
@@ -150,6 +167,22 @@ Groups can also be defined, allowing multiple shutters to be controlled together
 
 Groups can reference other groups as long as there are no circular dependencies.
 
+
+#### Home Assistant Integration
+
+Rolek now supports automatic Home Assistant integration via MQTT.  It's enabled automatically when MQTT is confitured in
+`data/network.json`.  Home Assistant should automatically detect all defined shutters and groups.
+
+
+#### Syslog Support
+
+By default, logs are printed over serial at 115200 baud.  However, for convenience, logs can also be sent to a syslog server.
+This is implemented using the [PicoSyslog library](https://github.com/mlesniew/PicoSyslog) and can be enabled by configuring
+the syslog server’s IP/hostname in `data/network.json`.
+
+The easiest way to run a compatible syslog server is using this Docker image: [mlesniew/syslog](https://hub.docker.com/r/mlesniew/syslog).
+
+
 #### Extra configuration
 
 Additional settings can be defined in `data/network.json`:
@@ -159,3 +192,5 @@ Additional settings can be defined in `data/network.json`:
   * `hass_autodiscovery_topic` – Home Assistant auto-discovery topic (default: `homeassistant`).
   * `password` – OTA update password.
   * `syslog` – IP or hostname of a syslog server for remote logging.
+
+</details>
