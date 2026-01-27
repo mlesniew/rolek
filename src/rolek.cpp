@@ -164,6 +164,11 @@ void setup_endpoints() {
         server.send(200, F("text/plain"), F("OK"));
     });
 
+    server.on("/uptime", HTTP_GET, [] {
+        unsigned long uptime = millis();
+        server.send(200, "text/plain", String(uptime / 1000));
+    });
+
     server.serveStatic("/", SPIFFS, "/ui/");
 }
 
