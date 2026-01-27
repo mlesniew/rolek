@@ -236,7 +236,7 @@ void init() {
 void tick() {
     static PicoUtils::Stopwatch stopwatch;
 
-    if (stopwatch.elapsed_millis() >= 1000) {
+    if (stopwatch.elapsed_millis() >= 250) {
         for (auto & watch : position_watches) { watch.tick(); }
         for (auto & watch : state_watches) { watch.tick(); }
         stopwatch.reset();
