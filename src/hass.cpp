@@ -4,6 +4,7 @@
 
 #include <ArduinoJson.h>
 #include <PicoMQTT.h>
+#include <PicoSlugify.h>
 #include <PicoSyslog.h>
 #include <PicoUtils.h>
 
@@ -21,7 +22,7 @@ bool sync();
 
 namespace {
 
-const String board_id(ESP.getChipId(), HEX);
+
 
 std::list<PicoUtils::Watch<double>> position_watches;
 std::list<PicoUtils::Watch<command_t>> state_watches;
@@ -38,7 +39,7 @@ namespace HomeAssistant {
 void notify_state(const Shutter & shutter) {
     const auto index = shutter.index;
     const auto command = shutter.get_state();
-    const auto topic = "rolek/" + board_id + "/" + String(index) + "/state";
+    const auto topic = "rolek/" + hostname + "/" + String(index) + "/state";
     switch (command) {
         case COMMAND_STOP: {
             const auto position = shutter.get_position();
@@ -64,7 +65,7 @@ void notify_position(const Shutter & shutter) {
     const auto index = shutter.index;
     const auto position = shutter.get_position();
     mqtt.publish(
-        "rolek/" + board_id + "/" + String(index) + "/position",
+        "rolek/" + hostname + "/" + String(index) + "/position",
         String(std::isnan(position) ? 50 : position), 0, true);
 }
 
@@ -76,9 +77,7 @@ void autodiscover() {
 
     syslog.println("Home Assistant autodiscovery messages...");
 
-    const String board_unique_id = "rolek_" + board_id;
-    String friendly_hostname = hostname;
-    hostname[0] = hostname[0] ^ ' ';
+    const String board_unique_id = "rolek_" + String(ESP.getChipId(), HEX);
 
     for (const auto & kv : shutters) {
         const auto unique_id = board_unique_id + "_" + String(kv.second.index);
@@ -86,18 +85,19 @@ void autodiscover() {
         const String topic = hass_autodiscovery_topic + "/cover/" + unique_id + "/config";
 
         JsonDocument json;
+        json["platform"] = "mqtt";
         json["unique_id"] = unique_id;
-        json["name"] = friendly_hostname + " " + name;
-        json["object_id"] = hostname + "_" + name;
-        json["command_topic"] = "rolek/" + board_id + "/" + String(kv.second.index) + "/command";
-        json["state_topic"] = "rolek/" + board_id + "/" + String(kv.second.index) + "/state";
-        json["position_topic"] = "rolek/" + board_id + "/" + String(kv.second.index) + "/position";
-        json["set_position_topic"] = "rolek/" + board_id + "/" + String(kv.second.index) + "/position/set";
-        json["availability_topic"] = "rolek/" + board_id + "/availability";
+        json["name"] = nullptr;
+        json["default_entity_id"] = String("cover.") + hostname + "_" + PicoSlugify::slugify(name);
+        json["command_topic"] = "rolek/" + hostname + "/" + String(kv.second.index) + "/command";
+        json["state_topic"] = "rolek/" + hostname + "/" + String(kv.second.index) + "/state";
+        json["position_topic"] = "rolek/" + hostname + "/" + String(kv.second.index) + "/position";
+        json["set_position_topic"] = "rolek/" + hostname + "/" + String(kv.second.index) + "/position/set";
+        json["availability_topic"] = "rolek/" + hostname + "/availability";
         json["device_class"] = "shutter";
 
         auto device = json["device"];
-        device["name"] = "Rolek controller " + name;
+        device["name"] = "Rolek " + name;
         device["suggested_area"] = get_first_word(name);
         device["identifiers"][0] = unique_id;
         device["via_device"] = board_unique_id;
@@ -127,16 +127,17 @@ void autodiscover() {
         const String topic = hass_autodiscovery_topic + "/button/" + unique_id + "/config";
 
         JsonDocument json;
+        json["platform"] = "mqtt";
         json["unique_id"] = unique_id;
-        json["object_id"] = hostname + "_" + button.name;
-        json["command_topic"] = "rolek/" + board_id + "/command";
-        json["availability_topic"] = "rolek/" + board_id + "/availability";
-        json["name"] = friendly_hostname + " " + button.friendly_name;
+        json["default_entity_id"] = String("button.") + hostname + "_" + button.name;
+        json["command_topic"] = "rolek/" + hostname + "/command";
+        json["availability_topic"] = "rolek/" + hostname + "/availability";
+        json["name"] = button.friendly_name;
         json["payload_press"] = button.payload;
         json["icon"] = button.icon;
 
         auto device = json["device"];
-        device["name"] = hostname;
+        device["name"] = "Rolek";
         device["manufacturer"] = "mlesniew";
         device["sw_version"] = __DATE__ " " __TIME__;
         device["configuration_url"] = "http://" + WiFi.localIP().toString();
@@ -151,7 +152,7 @@ void autodiscover() {
 }
 
 void init() {
-    mqtt.subscribe("rolek/" + board_id + "/+/command", [](const char * topic, const char * payload) {
+    mqtt.subscribe("rolek/" + hostname + "/+/command", [](const char * topic, const char * payload) {
 
         command_t command;
         if (strcmp(payload, "STOP") == 0) {
@@ -174,7 +175,7 @@ void init() {
         }
     });
 
-    mqtt.subscribe("rolek/" + board_id + "/+/position/set", [](const char * topic, const String & payload) {
+    mqtt.subscribe("rolek/" + hostname + "/+/position/set", [](const char * topic, const String & payload) {
         const auto index = mqtt.get_topic_element(topic, 2).toInt();
 
         const double position = payload.toDouble();
@@ -186,7 +187,7 @@ void init() {
         }
     });
 
-    mqtt.subscribe("rolek/" + board_id + "/command", [](const char * payload) {
+    mqtt.subscribe("rolek/" + hostname + "/command", [](const char * payload) {
         if (strcmp(payload, "RESET") == 0) {
             remote.reset();
         } else if (strcmp(payload, "SYNC") == 0) {
@@ -203,7 +204,7 @@ void init() {
         }
     });
 
-    mqtt.will.topic = "rolek/" + board_id + "/availability";
+    mqtt.will.topic = "rolek/" + hostname + "/availability";
     mqtt.will.payload = "offline";
     mqtt.will.retain = true;
 

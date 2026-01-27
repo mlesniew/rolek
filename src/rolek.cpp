@@ -2,17 +2,20 @@
 
 #include <ESP8266WebServer.h>
 #include <uri/UriRegex.h>
-#include <LittleFS.h>
+#include <FS.h>
 
-#include <ArduinoOTA.h>
 #include <ArduinoJson.h>
-#include <PicoUtils.h>
+#include <ArduinoOTA.h>
 #include <PicoMQTT.h>
+#include <PicoSlugify.h>
 #include <PicoSyslog.h>
+#include <PicoUtils.h>
 
 #include "remote.h"
 #include "shutter.h"
 #include "hass.h"
+
+const String board_id(ESP.getChipId(), HEX);
 
 String hostname;
 String hass_autodiscovery_topic;
@@ -161,11 +164,11 @@ void setup_endpoints() {
         server.send(200, F("text/plain"), F("OK"));
     });
 
-    server.serveStatic("/", LittleFS, "/ui/");
+    server.serveStatic("/", SPIFFS, "/ui/");
 }
 
 void setup_shutters() {
-    PicoUtils::JsonConfigFile<JsonDocument> config(LittleFS, "/shutters.json");
+    PicoUtils::JsonConfigFile<JsonDocument> config(SPIFFS, "/shutters.json");
 
     for (const auto & kv : config.as<JsonObjectConst>()) {
         const String key = kv.key().c_str();
@@ -220,11 +223,11 @@ void setup() {
     };
 
     Serial.println(F("Initializing file system..."));
-    LittleFS.begin();
+    SPIFFS.begin();
     {
         Serial.println(F("Load network configuration..."));
-        PicoUtils::JsonConfigFile<JsonDocument> config(LittleFS, F("/network.json"));
-        hostname = config["hostname"] | "rolek";
+        PicoUtils::JsonConfigFile<JsonDocument> config(SPIFFS, F("/network.json"));
+        hostname = PicoSlugify::slugify(config["hostname"] | ("rolek" + board_id));
         hass_autodiscovery_topic = config["hass_autodiscovery_topic"] | "homeassistant";
         mqtt.host = config["mqtt"]["host"] | "";
         mqtt.port = config["mqtt"]["port"] | 1883;
@@ -255,7 +258,7 @@ void setup() {
 
     HomeAssistant::init();
 
-    mqtt.client_id = "rolek-" + String(ESP.getChipId(), HEX);
+    mqtt.client_id = "rolek-" + board_id;
     mqtt.begin();
 
     Serial.println(F("Starting up ArduinoOTA..."));
