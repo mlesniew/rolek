@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <PicoHA.h>
 #include <PicoMQTT.h>
 #include <PicoSlugify.h>
 #include <PicoSyslog.h>
@@ -13,7 +14,6 @@
 
 extern PicoMQTT::Client mqtt;
 extern PicoSyslog::Logger syslog;
-extern String hass_autodiscovery_topic;
 extern std::map<String, Shutter> shutters;
 extern String hostname;
 
@@ -21,9 +21,6 @@ bool process(const String & name, const command_t command);
 bool sync();
 
 namespace {
-
-std::list<PicoUtils::Watch<double>> position_watches;
-std::list<PicoUtils::Watch<command_t>> state_watches;
 
 String get_first_word(const String & s) {
     auto space_idx = s.indexOf(' ');
@@ -34,229 +31,96 @@ String get_first_word(const String & s) {
 
 namespace HomeAssistant {
 
-void notify_state(const Shutter & shutter) {
-    const auto index = shutter.index;
-    const auto command = shutter.get_state();
-    const auto topic = "rolek/" + hostname + "/" + String(index) + "/state";
-    switch (command) {
-        case COMMAND_STOP: {
-            const auto position = shutter.get_position();
-            if (position <= 0) {
-                mqtt.publish(topic, "closed", 0, true);
-            } else if (position >= 100) {
-                mqtt.publish(topic, "open", 0, true);
-            } else {
-                mqtt.publish(topic, "stopped", 0, true);
-            }
-        } break;
-        case COMMAND_UP:
-            mqtt.publish(topic, "opening", 0, true);
-            break;
-        case COMMAND_DOWN:
-            mqtt.publish(topic, "closing", 0, true);
-            break;
-    }
-}
-
-void notify_position(const Shutter & shutter) {
-    const auto index = shutter.index;
-    const auto position = shutter.get_position();
-    mqtt.publish("rolek/" + hostname + "/" + String(index) + "/position",
-                 String(std::isnan(position) ? 50 : position), 0, true);
-}
-
-void autodiscover() {
-    if (hass_autodiscovery_topic.length() == 0) {
-        syslog.println("Home Assistant autodiscovery disabled.");
-        return;
-    }
-
-    syslog.println("Home Assistant autodiscovery messages...");
-
-    const String board_unique_id = "rolek_" + String(ESP.getChipId(), HEX);
-
-    for (const auto & kv : shutters) {
-        const auto unique_id = board_unique_id + "_" + String(kv.second.index);
-        const auto name = kv.first;
-        const String topic =
-            hass_autodiscovery_topic + "/cover/" + unique_id + "/config";
-
-        JsonDocument json;
-        json["platform"] = "mqtt";
-        json["unique_id"] = unique_id;
-        json["name"] = nullptr;
-        json["default_entity_id"] =
-            String("cover.") + hostname + "_" + PicoSlugify::slugify(name);
-        json["command_topic"] =
-            "rolek/" + hostname + "/" + String(kv.second.index) + "/command";
-        json["state_topic"] =
-            "rolek/" + hostname + "/" + String(kv.second.index) + "/state";
-        json["position_topic"] =
-            "rolek/" + hostname + "/" + String(kv.second.index) + "/position";
-        json["set_position_topic"] = "rolek/" + hostname + "/" +
-                                     String(kv.second.index) + "/position/set";
-        json["availability_topic"] = "rolek/" + hostname + "/availability";
-        json["device_class"] = "shutter";
-
-        auto device = json["device"];
-        device["name"] = "Rolek " + name;
-        device["suggested_area"] = get_first_word(name);
-        device["identifiers"][0] = unique_id;
-        device["via_device"] = board_unique_id;
-
-        auto publish = mqtt.begin_publish(topic, measureJson(json), 0, true);
-        serializeJson(json, publish);
-        publish.send();
-    }
-
-    struct Button {
-        const char * name;
-        const char * friendly_name;
-        const char * payload;
-        const char * icon;
-    };
-
-    static const Button buttons[] = {
-        {"reset_remote", "Reset remote", "RESET", "mdi:lightning-bolt"},
-        {"up", "Open all shutters", "UP", "mdi:arrow-up-bold"},
-        {"down", "Close all shutters", "DOWN", "mdi:arrow-down-bold"},
-        {"stop", "Stop all shutters", "STOP", "mdi:stop"},
-        {"sync_position", "Sync position", "SYNC", "mdi:cog-sync"},
-    };
-
-    for (const auto & button : buttons) {
-        const String unique_id = board_unique_id + "_" + button.name;
-        const String topic =
-            hass_autodiscovery_topic + "/button/" + unique_id + "/config";
-
-        JsonDocument json;
-        json["platform"] = "mqtt";
-        json["unique_id"] = unique_id;
-        json["default_entity_id"] =
-            String("button.") + hostname + "_" + button.name;
-        json["command_topic"] = "rolek/" + hostname + "/command";
-        json["availability_topic"] = "rolek/" + hostname + "/availability";
-        json["name"] = button.friendly_name;
-        json["payload_press"] = button.payload;
-        json["icon"] = button.icon;
-
-        auto device = json["device"];
-        device["name"] = "Rolek";
-        device["manufacturer"] = "mlesniew";
-        device["sw_version"] = __DATE__ " " __TIME__;
-        device["configuration_url"] = "http://" + WiFi.localIP().toString();
-        device["identifiers"][0] = board_unique_id;
-
-        auto publish = mqtt.begin_publish(topic, measureJson(json), 0, true);
-        serializeJson(json, publish);
-        publish.send();
-    }
-
-    syslog.println("Home Assistant autodiscovery announcement complete.");
-}
+PicoHA::Device device(mqtt, "Rolek", "mlesniew", "Rolek");
 
 void init() {
-    mqtt.subscribe("rolek/" + hostname + "/+/command",
-                   [](const char * topic, const char * payload) {
-                       command_t command;
-                       if (strcmp(payload, "STOP") == 0) {
-                           command = COMMAND_STOP;
-                       } else if (strcmp(payload, "OPEN") == 0) {
-                           command = COMMAND_UP;
-                       } else if (strcmp(payload, "CLOSE") == 0) {
-                           command = COMMAND_DOWN;
-                       } else {
-                           // invalid command
-                           return;
-                       }
+    device.name = hostname;
 
-                       const auto index =
-                           mqtt.get_topic_element(topic, 2).toInt();
+    PicoHA::add_diagnostic_entities(device);
 
-                       for (auto & kv : shutters) {
-                           if (long(kv.second.index) == index) {
-                               kv.second.process(command);
-                           }
-                       }
-                   });
+    auto & reset_remote_button =
+        device.addButton(F("reset_remote"), F("Reset remote"));
+    reset_remote_button.icon = F("lightning-bolt");
+    reset_remote_button.on_press = [] { remote.reset(); };
 
-    mqtt.subscribe("rolek/" + hostname + "/+/position/set",
-                   [](const char * topic, const String & payload) {
-                       const auto index =
-                           mqtt.get_topic_element(topic, 2).toInt();
+    auto & up_button = device.addButton(F("up"), F("Open all shutters"));
+    up_button.icon = F("arrow-up-bold");
+    up_button.on_press = [] { process("", COMMAND_UP); };
 
-                       const double position = payload.toDouble();
+    auto & down_button = device.addButton(F("down"), F("Close all shutters"));
+    down_button.icon = F("arrow-down-bold");
+    down_button.on_press = [] { process("", COMMAND_DOWN); };
 
-                       for (auto & kv : shutters) {
-                           if (long(kv.second.index) == index) {
-                               kv.second.set_position(position);
-                           }
-                       }
-                   });
+    auto & stop_button = device.addButton(F("stop"), F("Stop all shutters"));
+    stop_button.icon = F("stop");
+    stop_button.on_press = [] { process("", COMMAND_STOP); };
 
-    mqtt.subscribe("rolek/" + hostname + "/command", [](const char * payload) {
-        if (strcmp(payload, "RESET") == 0) {
-            remote.reset();
-        } else if (strcmp(payload, "SYNC") == 0) {
-            sync();
-        } else if (strcmp(payload, "STOP") == 0) {
-            process("", COMMAND_STOP);
-        } else if (strcmp(payload, "UP") == 0) {
-            process("", COMMAND_UP);
-        } else if (strcmp(payload, "DOWN") == 0) {
-            process("", COMMAND_DOWN);
-        } else {
-            // invalid command
-            return;
-        }
-    });
+    auto & sync_position_button =
+        device.addButton(F("sync_position"), F("Sync position"));
+    sync_position_button.icon = F("cog-sync");
+    sync_position_button.on_press = [] { sync(); };
 
-    mqtt.will.topic = "rolek/" + hostname + "/availability";
-    mqtt.will.payload = "offline";
-    mqtt.will.retain = true;
+    for (auto & kv : shutters) {
+        auto & shutter_device = device.addChildDevice(
+            String(kv.second.index), F("Rolek ") + kv.first, F("mlesniew"),
+            F("Rolek Shutter"), get_first_word(kv.first));
 
-    mqtt.connected_callback = [] {
-        // send autodiscovery messages
-        autodiscover();
+        auto & cover = shutter_device.addCover("shutter", nullptr);
+        cover.device_class = F("shutter");
 
-        // notify about the state of shutters
-        for (auto & watch : position_watches) {
-            watch.fire();
-        }
-        for (auto & watch : state_watches) {
-            watch.fire();
-        }
-
-        // notify about availability
-        mqtt.publish(mqtt.will.topic, "online", 0, true);
-    };
-
-    for (const auto & kv : shutters) {
-        const auto & shutter = kv.second;
-        position_watches.push_back(PicoUtils::Watch<double>(
-            [&shutter] {
-                const auto position = shutter.get_position();
-                return std::isnan(position) ? 50 : position;
+        cover.position_getter = PicoCallback<int>(
+            [](const Shutter * shutter) {
+                const auto position = shutter->get_position();
+                return std::isnan(position) ? 50 : int(position);
             },
-            [&shutter] { notify_position(shutter); }));
-        state_watches.push_back(PicoUtils::Watch<command_t>(
-            [&shutter] { return shutter.get_state(); },
-            [&shutter] { notify_state(shutter); }));
+            &kv.second);
+
+        cover.position_setter = PicoCallback<void, int>(
+            [](Shutter * shutter, int position) {
+                shutter->set_position(position);
+            },
+            &kv.second);
+
+        cover.state_getter = PicoCallback<PicoHA::Cover::State>(
+            [](const Shutter * shutter) {
+                switch (shutter->get_state()) {
+                    case COMMAND_UP:
+                        return PicoHA::Cover::State::opening;
+                    case COMMAND_DOWN:
+                        return PicoHA::Cover::State::closing;
+                    case COMMAND_STOP:
+                    default:
+                        if (std::isnan(shutter->get_position())) {
+                            return PicoHA::Cover::State::stopped;
+                        } else if (shutter->get_position() <= 10) {
+                            return PicoHA::Cover::State::closed;
+                        } else {
+                            return PicoHA::Cover::State::open;
+                        }
+                }
+            },
+            &kv.second);
+
+        cover.command_setter = PicoCallback<void, PicoHA::Cover::Command>(
+            [](Shutter * shutter, PicoHA::Cover::Command command) {
+                switch (command) {
+                    case PicoHA::Cover::Command::open:
+                        shutter->process(COMMAND_UP);
+                        break;
+                    case PicoHA::Cover::Command::close:
+                        shutter->process(COMMAND_DOWN);
+                        break;
+                    case PicoHA::Cover::Command::stop:
+                        shutter->process(COMMAND_STOP);
+                        break;
+                }
+            },
+            &kv.second);
     }
+
+    device.begin();
 }
 
-void tick() {
-    static PicoUtils::Stopwatch stopwatch;
-
-    if (stopwatch.elapsed_millis() >= 250) {
-        for (auto & watch : position_watches) {
-            watch.tick();
-        }
-        for (auto & watch : state_watches) {
-            watch.tick();
-        }
-        stopwatch.reset();
-    }
-}
+void tick() { device.loop(); }
 
 }  // namespace HomeAssistant
