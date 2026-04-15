@@ -9,4 +9,4 @@ namespace HomeAssistant {
 void init();
 void tick();
 
-}
+}  // namespace HomeAssistant

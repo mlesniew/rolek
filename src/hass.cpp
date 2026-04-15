@@ -1,14 +1,14 @@
+#include "hass.h"
+
 #include <Arduino.h>
-
-#include <map>
-
 #include <ArduinoJson.h>
 #include <PicoMQTT.h>
 #include <PicoSlugify.h>
 #include <PicoSyslog.h>
 #include <PicoUtils.h>
 
-#include "hass.h"
+#include <map>
+
 #include "shutter.h"
 
 extern PicoMQTT::Client mqtt;
@@ -22,8 +22,6 @@ bool sync();
 
 namespace {
 
-
-
 std::list<PicoUtils::Watch<double>> position_watches;
 std::list<PicoUtils::Watch<command_t>> state_watches;
 
@@ -32,7 +30,7 @@ String get_first_word(const String & s) {
     return space_idx <= 0 ? s : s.substring(0, space_idx);
 }
 
-}
+}  // namespace
 
 namespace HomeAssistant {
 
@@ -50,8 +48,7 @@ void notify_state(const Shutter & shutter) {
             } else {
                 mqtt.publish(topic, "stopped", 0, true);
             }
-        }
-        break;
+        } break;
         case COMMAND_UP:
             mqtt.publish(topic, "opening", 0, true);
             break;
@@ -64,9 +61,8 @@ void notify_state(const Shutter & shutter) {
 void notify_position(const Shutter & shutter) {
     const auto index = shutter.index;
     const auto position = shutter.get_position();
-    mqtt.publish(
-        "rolek/" + hostname + "/" + String(index) + "/position",
-        String(std::isnan(position) ? 50 : position), 0, true);
+    mqtt.publish("rolek/" + hostname + "/" + String(index) + "/position",
+                 String(std::isnan(position) ? 50 : position), 0, true);
 }
 
 void autodiscover() {
@@ -82,17 +78,23 @@ void autodiscover() {
     for (const auto & kv : shutters) {
         const auto unique_id = board_unique_id + "_" + String(kv.second.index);
         const auto name = kv.first;
-        const String topic = hass_autodiscovery_topic + "/cover/" + unique_id + "/config";
+        const String topic =
+            hass_autodiscovery_topic + "/cover/" + unique_id + "/config";
 
         JsonDocument json;
         json["platform"] = "mqtt";
         json["unique_id"] = unique_id;
         json["name"] = nullptr;
-        json["default_entity_id"] = String("cover.") + hostname + "_" + PicoSlugify::slugify(name);
-        json["command_topic"] = "rolek/" + hostname + "/" + String(kv.second.index) + "/command";
-        json["state_topic"] = "rolek/" + hostname + "/" + String(kv.second.index) + "/state";
-        json["position_topic"] = "rolek/" + hostname + "/" + String(kv.second.index) + "/position";
-        json["set_position_topic"] = "rolek/" + hostname + "/" + String(kv.second.index) + "/position/set";
+        json["default_entity_id"] =
+            String("cover.") + hostname + "_" + PicoSlugify::slugify(name);
+        json["command_topic"] =
+            "rolek/" + hostname + "/" + String(kv.second.index) + "/command";
+        json["state_topic"] =
+            "rolek/" + hostname + "/" + String(kv.second.index) + "/state";
+        json["position_topic"] =
+            "rolek/" + hostname + "/" + String(kv.second.index) + "/position";
+        json["set_position_topic"] = "rolek/" + hostname + "/" +
+                                     String(kv.second.index) + "/position/set";
         json["availability_topic"] = "rolek/" + hostname + "/availability";
         json["device_class"] = "shutter";
 
@@ -115,21 +117,23 @@ void autodiscover() {
     };
 
     static const Button buttons[] = {
-        {"reset_remote", "Reset remote", "RESET", "mdi:lightning-bolt" },
-        {"up", "Open all shutters", "UP", "mdi:arrow-up-bold" },
-        {"down", "Close all shutters", "DOWN", "mdi:arrow-down-bold" },
+        {"reset_remote", "Reset remote", "RESET", "mdi:lightning-bolt"},
+        {"up", "Open all shutters", "UP", "mdi:arrow-up-bold"},
+        {"down", "Close all shutters", "DOWN", "mdi:arrow-down-bold"},
         {"stop", "Stop all shutters", "STOP", "mdi:stop"},
-        {"sync_position", "Sync position", "SYNC", "mdi:cog-sync" },
+        {"sync_position", "Sync position", "SYNC", "mdi:cog-sync"},
     };
 
     for (const auto & button : buttons) {
         const String unique_id = board_unique_id + "_" + button.name;
-        const String topic = hass_autodiscovery_topic + "/button/" + unique_id + "/config";
+        const String topic =
+            hass_autodiscovery_topic + "/button/" + unique_id + "/config";
 
         JsonDocument json;
         json["platform"] = "mqtt";
         json["unique_id"] = unique_id;
-        json["default_entity_id"] = String("button.") + hostname + "_" + button.name;
+        json["default_entity_id"] =
+            String("button.") + hostname + "_" + button.name;
         json["command_topic"] = "rolek/" + hostname + "/command";
         json["availability_topic"] = "rolek/" + hostname + "/availability";
         json["name"] = button.friendly_name;
@@ -152,40 +156,43 @@ void autodiscover() {
 }
 
 void init() {
-    mqtt.subscribe("rolek/" + hostname + "/+/command", [](const char * topic, const char * payload) {
+    mqtt.subscribe("rolek/" + hostname + "/+/command",
+                   [](const char * topic, const char * payload) {
+                       command_t command;
+                       if (strcmp(payload, "STOP") == 0) {
+                           command = COMMAND_STOP;
+                       } else if (strcmp(payload, "OPEN") == 0) {
+                           command = COMMAND_UP;
+                       } else if (strcmp(payload, "CLOSE") == 0) {
+                           command = COMMAND_DOWN;
+                       } else {
+                           // invalid command
+                           return;
+                       }
 
-        command_t command;
-        if (strcmp(payload, "STOP") == 0) {
-            command = COMMAND_STOP;
-        } else if (strcmp(payload, "OPEN") == 0) {
-            command = COMMAND_UP;
-        } else if (strcmp(payload, "CLOSE") == 0) {
-            command = COMMAND_DOWN;
-        } else {
-            // invalid command
-            return;
-        }
+                       const auto index =
+                           mqtt.get_topic_element(topic, 2).toInt();
 
-        const auto index = mqtt.get_topic_element(topic, 2).toInt();
+                       for (auto & kv : shutters) {
+                           if (long(kv.second.index) == index) {
+                               kv.second.process(command);
+                           }
+                       }
+                   });
 
-        for (auto & kv : shutters) {
-            if (long(kv.second.index) == index) {
-                kv.second.process(command);
-            }
-        }
-    });
+    mqtt.subscribe("rolek/" + hostname + "/+/position/set",
+                   [](const char * topic, const String & payload) {
+                       const auto index =
+                           mqtt.get_topic_element(topic, 2).toInt();
 
-    mqtt.subscribe("rolek/" + hostname + "/+/position/set", [](const char * topic, const String & payload) {
-        const auto index = mqtt.get_topic_element(topic, 2).toInt();
+                       const double position = payload.toDouble();
 
-        const double position = payload.toDouble();
-
-        for (auto & kv : shutters) {
-            if (long(kv.second.index) == index) {
-                kv.second.set_position(position);
-            }
-        }
-    });
+                       for (auto & kv : shutters) {
+                           if (long(kv.second.index) == index) {
+                               kv.second.set_position(position);
+                           }
+                       }
+                   });
 
     mqtt.subscribe("rolek/" + hostname + "/command", [](const char * payload) {
         if (strcmp(payload, "RESET") == 0) {
@@ -213,8 +220,12 @@ void init() {
         autodiscover();
 
         // notify about the state of shutters
-        for (auto & watch : position_watches) { watch.fire(); }
-        for (auto & watch : state_watches) { watch.fire(); }
+        for (auto & watch : position_watches) {
+            watch.fire();
+        }
+        for (auto & watch : state_watches) {
+            watch.fire();
+        }
 
         // notify about availability
         mqtt.publish(mqtt.will.topic, "online", 0, true);
@@ -223,13 +234,14 @@ void init() {
     for (const auto & kv : shutters) {
         const auto & shutter = kv.second;
         position_watches.push_back(PicoUtils::Watch<double>(
-        [&shutter] {
-            const auto position = shutter.get_position();
-            return std::isnan(position) ? 50 : position;
-        },
-        [&shutter] { notify_position(shutter); }));
-        state_watches.push_back(PicoUtils::Watch<command_t>([&shutter] { return shutter.get_state(); },
-                                [&shutter] { notify_state(shutter); }));
+            [&shutter] {
+                const auto position = shutter.get_position();
+                return std::isnan(position) ? 50 : position;
+            },
+            [&shutter] { notify_position(shutter); }));
+        state_watches.push_back(PicoUtils::Watch<command_t>(
+            [&shutter] { return shutter.get_state(); },
+            [&shutter] { notify_state(shutter); }));
     }
 }
 
@@ -237,10 +249,14 @@ void tick() {
     static PicoUtils::Stopwatch stopwatch;
 
     if (stopwatch.elapsed_millis() >= 250) {
-        for (auto & watch : position_watches) { watch.tick(); }
-        for (auto & watch : state_watches) { watch.tick(); }
+        for (auto & watch : position_watches) {
+            watch.tick();
+        }
+        for (auto & watch : state_watches) {
+            watch.tick();
+        }
         stopwatch.reset();
     }
 }
 
-}
+}  // namespace HomeAssistant

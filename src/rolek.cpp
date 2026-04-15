@@ -1,19 +1,18 @@
-#include <map>
-
-#include <ESP8266WebServer.h>
-#include <uri/UriRegex.h>
-#include <FS.h>
-
 #include <ArduinoJson.h>
 #include <ArduinoOTA.h>
+#include <ESP8266WebServer.h>
+#include <FS.h>
 #include <PicoMQTT.h>
 #include <PicoSlugify.h>
 #include <PicoSyslog.h>
 #include <PicoUtils.h>
+#include <uri/UriRegex.h>
 
+#include <map>
+
+#include "hass.h"
 #include "remote.h"
 #include "shutter.h"
-#include "hass.h"
 
 const String board_id(ESP.getChipId(), HEX);
 
@@ -39,8 +38,11 @@ bool process(const String & name, const command_t command) {
     if (name.isEmpty()) {
         remote.execute(0, command);
 
-        // notify individual shutters manually about the globally executed command
-        for (auto & kv : shutters) { kv.second.on_execute(command); }
+        // notify individual shutters manually about the globally executed
+        // command
+        for (auto & kv : shutters) {
+            kv.second.on_execute(command);
+        }
 
         return true;
     }
@@ -69,7 +71,9 @@ bool process(const String & name, const command_t command) {
 
 bool set_position(const String & name, const double position) {
     if (name.isEmpty()) {
-        for (auto & kv : shutters) { kv.second.set_position(position); }
+        for (auto & kv : shutters) {
+            kv.second.set_position(position);
+        }
         return true;
     }
 
@@ -96,12 +100,13 @@ bool set_position(const String & name, const double position) {
 }
 
 void sync() {
-    for (auto & kv : shutters) { kv.second.sync(); }
+    for (auto & kv : shutters) {
+        kv.second.sync();
+    }
 }
 
 void setup_endpoints() {
     server.on(UriRegex("/shutters(.*)/(up|down|stop)"), HTTP_POST, [] {
-
         syslog.printf("POST %s\n", server.uri().c_str());
 
         String name = server.decodedPathArg(0);
@@ -190,7 +195,8 @@ void setup_shutters() {
             const double open_time = obj["open_time"] | obj["time"] | 30;
             const double close_time = obj["close_time"] | obj["time"] | 30;
             if (index) {
-                shutters.try_emplace(key, index, 1000 * open_time, 1000 * close_time);
+                shutters.try_emplace(key, index, 1000 * open_time,
+                                     1000 * close_time);
             }
         }
 
@@ -208,20 +214,20 @@ void setup() {
 
     Serial.begin(115200);
 
-    Serial.print(F(
-                     "\n\n"
-                     "8888888b.          888          888     \n"
-                     "888   Y88b         888          888     \n"
-                     "888    888         888          888     \n"
-                     "888   d88P .d88b.  888  .d88b.  888  888\n"
-                     "8888888P^ d88^^88b 888 d8P  Y8b 888 .88P\n"
-                     "888 T88b  888  888 888 88888888 888888K \n"
-                     "888  T88b Y88..88P 888 Y8b.     888 ^88b\n"
-                     "888   T88b ^Y88P^  888  ^Y8888  888  888\n"
-                     "\n"
-                     "Rolek " __DATE__ " " __TIME__ "\n"
-                     "https://github.com/mlesniew/rolek\n"
-                     "\n"));
+    Serial.print(
+        F("\n\n"
+          "8888888b.          888          888     \n"
+          "888   Y88b         888          888     \n"
+          "888    888         888          888     \n"
+          "888   d88P .d88b.  888  .d88b.  888  888\n"
+          "8888888P^ d88^^88b 888 d8P  Y8b 888 .88P\n"
+          "888 T88b  888  888 888 88888888 888888K \n"
+          "888  T88b Y88..88P 888 Y8b.     888 ^88b\n"
+          "888   T88b ^Y88P^  888  ^Y8888  888  888\n"
+          "\n"
+          "Rolek " __DATE__ " " __TIME__ "\n"
+          "https://github.com/mlesniew/rolek\n"
+          "\n"));
 
     wifi_control.get_connectivity_level = [] {
         return mqtt.connected() ? 2 : 1;
@@ -231,9 +237,12 @@ void setup() {
     SPIFFS.begin();
     {
         Serial.println(F("Load network configuration..."));
-        PicoUtils::JsonConfigFile<JsonDocument> config(SPIFFS, F("/network.json"));
-        hostname = PicoSlugify::slugify(config["hostname"] | ("rolek" + board_id));
-        hass_autodiscovery_topic = config["hass_autodiscovery_topic"] | "homeassistant";
+        PicoUtils::JsonConfigFile<JsonDocument> config(SPIFFS,
+                                                       F("/network.json"));
+        hostname =
+            PicoSlugify::slugify(config["hostname"] | ("rolek" + board_id));
+        hass_autodiscovery_topic =
+            config["hass_autodiscovery_topic"] | "homeassistant";
         mqtt.host = config["mqtt"]["host"] | "";
         mqtt.port = config["mqtt"]["port"] | 1883;
         mqtt.username = config["mqtt"]["username"] | "mqtt";

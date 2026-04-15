@@ -1,9 +1,8 @@
-#include <Arduino.h>
+#include "remote.h"
 
+#include <Arduino.h>
 #include <PicoSyslog.h>
 #include <PicoUtils.h>
-
-#include "remote.h"
 
 #define PIN_UP D1
 #define PIN_DN D0
@@ -27,7 +26,7 @@ void init_output(unsigned int pin) {
     digitalWrite(pin, LOW);
 }
 
-}
+}  // namespace
 
 void Remote::init() {
     syslog.println(F("Initializing outputs..."));
@@ -60,7 +59,6 @@ void Remote::reset() {
 }
 
 void Remote::push(button_t button, unsigned long time) {
-
     const char * desc;
     unsigned int pin = 0;
     switch (button) {
